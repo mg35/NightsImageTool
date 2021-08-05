@@ -52,14 +52,15 @@ int main() {
     std::string gameDir;
 
     while (mode != "q") {
-        std::cout << "Enter a mode:\n    i: input an image to a game file\n    o: output a gamefile to an image folder\n    c: configure directories\n    q: quit\n:";
+        std::cout << "Enter a mode:\n    i: input an image to a game file\n    o: output a gamefile to an image folder\n    g: output all gallery images at once\n    c: configure directories\n    q: quit\n:";
+        mode = "";
         std::getline(std::cin, mode);
 
         if (mode == "c") {
             SetDirectories(homeDir, gameDir);
         }
 
-        else if (mode == "i" || mode == "o") {
+        else if (mode == "i" || mode == "o" || mode == "g") {
             InitializeDirectories(homeDir, gameDir);
         }
 
@@ -101,7 +102,6 @@ int main() {
 
 
         if (mode == "o") {
-            
             std::cout << "Enter a game filename (case-sensitive): ";
             std::getline(std::cin, fileID);
             std::fstream testStream;
@@ -121,6 +121,30 @@ int main() {
             GenHeaderInfo(gameDir, fileID, headerInfo);
             OutputImages(gameDir, homeDir, fileID, headerInfo);
             std::cout << std::endl;
+        }
+
+        if (mode == "g") {
+            std::ifstream testIStream;
+            testIStream.open(gameDir + "GAMEUI_GALLERY_001.BIN");
+            if (!testIStream.is_open()) {
+                std::cout << "Error: the gallery files could not be opened. Try checking your game directory." << std::endl;
+                testIStream.close();
+                continue;
+            }
+            testIStream.close();
+            std::string fileNameList[8] = {"A01", "A02", "A03", "A04", "B01", "B02", "B03", "B04"};
+            for (int i = 1; i < 146; i++) {
+                fileID = "GAMEUI_GALLERY_" + IntToString3Width(i) + ".BIN";
+                GenHeaderInfo(gameDir, fileID, headerInfo);
+                OutputImages(gameDir, homeDir, fileID, headerInfo);
+                std::cout << std::endl;
+            }
+            for (int i = 0; i < 8; i++) {
+                fileID = "GAMEUI_GALLERY_" + fileNameList[i] + ".BIN";
+                GenHeaderInfo(gameDir, fileID, headerInfo);
+                OutputImages(gameDir, homeDir, fileID, headerInfo);
+                std::cout << std::endl;
+            }
         }
     }
 
@@ -742,20 +766,20 @@ int SetDirectories(std::string& homeDir, std::string& gameDir) {
 
 
 int InitializeDirectories(std::string& homeDir, std::string& gameDir) {
-    std::fstream testStream;
-    testStream.open("homeDir.txt", std::ios::out | std::ios::in);
-    getline(testStream, homeDir);
+    std::ifstream inStream;
+    std::ofstream outStream;
+    inStream.open("homeDir.txt");
+    getline(inStream, homeDir);
+    inStream.close();
     if (homeDir.empty()) {
         std::cout << "Error: The home directory has not been set. Set one now? (y/n): ";
         getline(std::cin, homeDir);
         if (homeDir == "y") {
             std::cout << "Enter a home directory (starts with C:\\): ";
             getline(std::cin, homeDir);
-            testStream << homeDir;
         }
         else {
             std::cout << "Quitting" << std::endl;
-            testStream.close();
             return QUIT;
         }
     }
@@ -764,24 +788,23 @@ int InitializeDirectories(std::string& homeDir, std::string& gameDir) {
         getline(std::cin, homeDir);
         if (homeDir == "q") {
             std::cout << "Quitting" << std::endl;
-            testStream.close();
             return QUIT;
         }
-        else {
-            testStream << homeDir;
-        }
     }
+    outStream.open("homeDir.txt");
+    outStream << homeDir;
+    outStream.close();
 
-    testStream.close();
-
-    testStream.open("gameDir.txt");
-    getline(testStream, gameDir);
+    inStream.open("gameDir.txt");
+    getline(inStream, gameDir);
+    inStream.close();
     if (gameDir.empty()) {
         std::cout << "Error: The game directory has not been set. Use default? (y/n): ";
         getline(std::cin, gameDir);
         if (gameDir == "y") {
             std::cout << "Attempting to set game directory to\n" << R"(C:\Program Files (x86)\Steam\steamapps\common\NiGHTS Into Dreams\afs\)" << std::endl;
-            testStream << R"(C:\Program Files (x86)\Steam\steamapps\common\NiGHTS Into Dreams\afs\)";
+            outStream.open("gameDir.txt");
+            outStream << R"(C:\Program Files (x86)\Steam\steamapps\common\NiGHTS Into Dreams\afs\)";
             gameDir = R"(C:\Program Files (x86)\Steam\steamapps\common\NiGHTS Into Dreams\afs\)";
         }
         else {
@@ -790,10 +813,10 @@ int InitializeDirectories(std::string& homeDir, std::string& gameDir) {
             if (gameDir == "y") {
                 std::cout << "Enter a game directory (starts with C:\\): ";
                 getline(std::cin, gameDir);
-                testStream << gameDir;
             }
             else {
                 std::cout << "Quitting" << std::endl;
+                outStream.close();
                 return QUIT;
             }
         }
@@ -804,6 +827,19 @@ int InitializeDirectories(std::string& homeDir, std::string& gameDir) {
     if (gameDir.back() != '\\') {
         gameDir.push_back('\\');
     }
+    while (!IsPathExist(gameDir)) {
+        std::cout << "Error: The directory does not exist. Enter another, or q to quit: ";
+        getline(std::cin, gameDir);
+        if (gameDir == "q") {
+            std::cout << "Quitting" << std::endl;
+            outStream.close();
+            return QUIT;
+        }
+        else {
+        }
+    }
+    outStream << gameDir;
+    outStream.close();
     if (IsPathExist(gameDir)) {
         std::ifstream testIStream;
         testIStream.open(gameDir + "DATNIGHTS.BIN", std::ios::binary);
@@ -812,19 +848,7 @@ int InitializeDirectories(std::string& homeDir, std::string& gameDir) {
         }
         testIStream.close();
     }
-    while (!IsPathExist(gameDir)) {
-        std::cout << "Error: The directory does not exist. Enter another, or q to quit: ";
-        getline(std::cin, gameDir);
-        if (gameDir == "q") {
-            std::cout << "Quitting" << std::endl;
-            testStream.close();
-            return QUIT;
-        }
-        else {
-            testStream << gameDir;
-        }
-    }
-    testStream.close();
+    
     
     return 0;
 }
@@ -952,8 +976,15 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
         for (unsigned int i = 0; i < inFileName.size() - 4; i++) {
             tempString.push_back(inFileName.at(i));
         }
+        std::string outFileName;
 
-        std::string outFileName = tempString + "-" + IntToString3Width(i) + ".bmp";
+        if (headerInfo.size() == 1) {
+            outFileName = tempString + ".bmp";
+        }
+        else {
+            outFileName = tempString + "-" + IntToString3Width(i) + ".bmp";
+        }
+        
         testStream.open(outFilePath + outFileName, std::ios::out);
 
         unsigned char paletteRGB[256][3];
