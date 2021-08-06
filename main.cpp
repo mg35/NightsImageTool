@@ -45,22 +45,24 @@ void GenHeaderInfo(std::string inFilePath, std::string inFileName, std::vector<I
 
 
 int main() {
-    std::string mode;
+    std::string modestr;
+    char mode;
     std::vector<ImgSpec> headerInfo;
     std::string fileID;
     std::string homeDir;
     std::string gameDir;
 
-    while (mode != "q") {
+    while (mode != 'q') {
         std::cout << "Enter a mode:\n    i: input an image to a game file\n    o: output a gamefile to an image folder\n    g: output all gallery images at once\n    c: configure directories\n    q: quit\n:";
-        mode = "";
-        std::getline(std::cin, mode);
+        mode = '\0';
+        std::getline(std::cin, modestr);
+        mode = modestr.at(0);
 
-        if (mode == "c") {
+        if (mode == 'c') {
             SetDirectories(homeDir, gameDir);
         }
 
-        else if (mode == "i" || mode == "o" || mode == "g") {
+        else if (mode == 'i' || mode == 'o' || mode == 'g') {
             InitializeDirectories(homeDir, gameDir);
         }
 
@@ -69,7 +71,7 @@ int main() {
         }
 
 
-        if (mode == "i") {
+        if (mode == 'i') {
             
             std::cout << "WARNING: THIS TOOL MAY PERMANENTLY ALTER AND POTENTIALLY CORRUPT GAME FILES. It is highly recommended to create a backup of \n";
             std::cout << gameDir << " \nbefore continuing. Continue? (y/n): ";
@@ -101,7 +103,7 @@ int main() {
         }
 
 
-        if (mode == "o") {
+        if (mode == 'o') {
             std::cout << "Enter a game filename (case-sensitive): ";
             std::getline(std::cin, fileID);
             std::fstream testStream;
@@ -123,7 +125,7 @@ int main() {
             std::cout << std::endl;
         }
 
-        if (mode == "g") {
+        if (mode == 'g') {
             std::ifstream testIStream;
             testIStream.open(gameDir + "GAMEUI_GALLERY_001.BIN");
             if (!testIStream.is_open()) {
