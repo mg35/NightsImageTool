@@ -18,7 +18,7 @@ bool IsPathExist(const std::string& s)
 void Unscramble(int numRows, unsigned char* array, unsigned char* resolveArray);
 std::string IntToString3Width(int value);
 unsigned char FindInPalette(unsigned char pixel[3], unsigned char palette[256][3], short& paletteSize);
-void loadGameFile8Bit(int numRows, int width, std::string fileName, char* array, unsigned char palette[256][3], int offset);
+void loadGameFile8Bit(int numRows, int width, std::string fileName, char* array, unsigned char palette[256][3], int offset, bool switchColorBlocks);
 int GetBMPSize(std::string fileName);
 void loadBMPFile(int numRows, int numChunks, std::string fileName, unsigned char palette[256][3], unsigned char* imgArray);
 void WidenArray(unsigned char* imgArray, unsigned char* hexarray, int arraySize);
@@ -40,51 +40,57 @@ int InitializeDirectories(std::string& homeDir, std::string& gameDir);
 int InputTexture(std::string& inFilePath, std::string& outFilePath, std::string& inFileName, std::vector<ImgSpec>& headerInfo);
 void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string& inFileName, std::vector<ImgSpec>& headerInfo);
 void GenHeaderInfo(std::string inFilePath, std::string inFileName, std::vector<ImgSpec>& headerInfo);
+void convert4Bit(unsigned char* array);
 
 
 
 
 int main() {
-    std::string modestr;
-    char mode;
-    std::vector<ImgSpec> headerInfo;
-    std::string fileID;
-    std::string homeDir;
-    std::string gameDir;
+    std::string modestr;   //user input
+    char mode = '\0';
+    std::vector<ImgSpec> headerInfo;  //header data from file
+    std::string fileID;    //game file name
+    std::string homeDir;   //output directory
+    std::string gameDir;   //input/game directory
 
     while (mode != 'q') {
-        std::cout << "Enter a mode:\n    i: input an image to a game file\n    o: output a gamefile to an image folder\n    g: output all gallery images at once\n    c: configure directories\n    q: quit\n:";
-        mode = '\0';
-        std::getline(std::cin, modestr);
-        mode = modestr.at(0);
+        std::cout << "Enter a mode:" << std::endl; 
+        std::cout << "    i: input an image to a game file" << std::endl; 
+        std::cout << "    o: output a gamefile to an image folder" << std::endl;      //Print options menu
+        std::cout << "    g: output all gallery images at once" << std::endl; 
+        std::cout << "    c: configure directories" << std::endl; 
+        std::cout << "    q: quit" << std::endl; 
+        std::cout << ":";
+        std::getline(std::cin, modestr);   //getline to be consistent and avoid messing with cin ignore, since later inputs need getline
+        mode = modestr.at(0);              //Trying to avoid string compare issues by using the first char
 
-        if (mode == 'c') {
+        if (mode == 'c') {     //configure
             SetDirectories(homeDir, gameDir);
         }
 
-        else if (mode == 'i' || mode == 'o' || mode == 'g') {
+        else if (mode == 'i' || mode == 'o' || mode == 'g') {    //if not configuring, load directory information
             InitializeDirectories(homeDir, gameDir);
         }
 
-        else {
+        else {    //reprint menu if user input is invalid
             continue;
         }
 
 
-        if (mode == 'i') {
+        if (mode == 'i') {    //input mode
             
             std::cout << "WARNING: THIS TOOL MAY PERMANENTLY ALTER AND POTENTIALLY CORRUPT GAME FILES. It is highly recommended to create a backup of \n";
-            std::cout << gameDir << " \nbefore continuing. Continue? (y/n): ";
+            std::cout << gameDir << " \nbefore continuing. Continue? (y/n): ";    //warning
             std::string tempString;
-            std::getline(std::cin, tempString);
+            std::getline(std::cin, tempString);   //user input y or n, erring on the side of caution
             if (tempString != "y") {
                 std::cout << "Quitting" << std::endl;
                 return 0;
             }
             std::cout << "Enter a game filename (case-sensitive): ";
-            std::getline(std::cin, fileID);
+            std::getline(std::cin, fileID);    //get game filename
             std::fstream testStream;
-            testStream.open(gameDir + fileID);
+            testStream.open(gameDir + fileID);    //test if file can be opened
             while (!testStream.is_open()) {
                 std::cout << "The file could not be opened. Enter another filename, or q to quit: ";
                 std::getline(std::cin, fileID);
@@ -96,9 +102,9 @@ int main() {
                     testStream.open(gameDir + fileID);
                 }
             }
-            testStream.close();
-            GenHeaderInfo(gameDir, fileID, headerInfo);
-            InputTexture(gameDir, homeDir, fileID, headerInfo);
+            //testStream.close();
+            GenHeaderInfo(gameDir, fileID, headerInfo);   //once file can be opened, generate header info
+            InputTexture(gameDir, homeDir, fileID, headerInfo);   //input texture to file
             std::cout << std::endl;
         }
 
@@ -107,7 +113,7 @@ int main() {
             std::cout << "Enter a game filename (case-sensitive): ";
             std::getline(std::cin, fileID);
             std::fstream testStream;
-            testStream.open(gameDir + fileID);
+            testStream.open(gameDir + fileID);    //test if file can be opened
             while (!testStream.is_open()) {
                 std::cout << "The file could not be opened. Enter another filename, or q to quit: ";
                 std::getline(std::cin, fileID);
@@ -119,29 +125,29 @@ int main() {
                     testStream.open(gameDir + fileID);
                 }
             }
-            testStream.close();
-            GenHeaderInfo(gameDir, fileID, headerInfo);
-            OutputImages(gameDir, homeDir, fileID, headerInfo);
+            //testStream.close();
+            GenHeaderInfo(gameDir, fileID, headerInfo);   //once file can be opened, generate header info
+            OutputImages(gameDir, homeDir, fileID, headerInfo);   //output all detected images to homeDir
             std::cout << std::endl;
         }
 
-        if (mode == 'g') {
+        if (mode == 'g') {   //output all gallery images in sequence
             std::ifstream testIStream;
-            testIStream.open(gameDir + "GAMEUI_GALLERY_001.BIN");
+            testIStream.open(gameDir + "GAMEUI_GALLERY_001.BIN");  //since file names are predetermined, check if one exists in the gameDir
             if (!testIStream.is_open()) {
                 std::cout << "Error: the gallery files could not be opened. Try checking your game directory." << std::endl;
                 testIStream.close();
                 continue;
             }
             testIStream.close();
-            std::string fileNameList[8] = {"A01", "A02", "A03", "A04", "B01", "B02", "B03", "B04"};
-            for (int i = 1; i < 146; i++) {
+            std::string fileNameList[8] = {"A01", "A02", "A03", "A04", "B01", "B02", "B03", "B04"};  //for non-numeric gallery file names
+            for (int i = 1; i < 146; i++) {       //iterate through all numeric gallery files
                 fileID = "GAMEUI_GALLERY_" + IntToString3Width(i) + ".BIN";
                 GenHeaderInfo(gameDir, fileID, headerInfo);
                 OutputImages(gameDir, homeDir, fileID, headerInfo);
                 std::cout << std::endl;
             }
-            for (int i = 0; i < 8; i++) {
+            for (int i = 0; i < 8; i++) {       //iterate through all non-numeric gallery files
                 fileID = "GAMEUI_GALLERY_" + fileNameList[i] + ".BIN";
                 GenHeaderInfo(gameDir, fileID, headerInfo);
                 OutputImages(gameDir, homeDir, fileID, headerInfo);
@@ -154,22 +160,22 @@ int main() {
 }
 
 
-void Unscramble(int numRows, unsigned char* array, unsigned char* resolveArray) {
-    int order[16] = { 0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15 };
+void Unscramble(int numRows, unsigned char* array, unsigned char* resolveArray) {   //unscramble 32-column chunk of 8-bit game file
+    int order[16] = { 0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15 };   //order that lines are stored in the chunk
     int indices[4] = { 0,0,0,0 };
     int indices2[4] = { 0,0,0,0 };
-    for (int i = 0; i < (CHUNK_SIZE / 2); i++) {
-        if (order[i] % 2 == 0) {
+    for (int i = 0; i < (CHUNK_SIZE / 2); i++) {  //i = column number
+        if (order[i] % 2 == 0) {    //save indices of matching quarter lines that make up each line index in order[]
             indices[1] = order[i];
             indices[0] = order[i] + 17;
             indices[2] = order[i] + 33;
             indices[3] = order[i] + 48;
-            indices2[0] = order[i];
+            indices2[0] = order[i];    //need two indices arrays because reconstruction order depends on the column
             indices2[1] = order[i] + 17;
             indices2[3] = order[i] + 33;
             indices2[2] = order[i] + 48;
         }
-        else {
+        else {     //numbers are different depending on parity of index in order[]
             indices[1] = order[i];
             indices[0] = order[i] + 15;
             indices[2] = order[i] + 31;
@@ -179,11 +185,11 @@ void Unscramble(int numRows, unsigned char* array, unsigned char* resolveArray) 
             indices2[3] = order[i] + 31;
             indices2[2] = order[i] + 48;
         }
-        for (int j = 0; j < numRows / 2; j += 2) {
-            for (int k = 0; k < 4; k++) {
-                if ((i / 4) % 2 == 0) {
+        for (int j = 0; j < numRows / 2; j += 2) {  //j = row number
+            for (int k = 0; k < 4; k++) { //k = which quarter line
+                if ((i / 4) % 2 == 0) {    //if i is 0-3 or 8-11, use indices2, else use indices
                     *(resolveArray + i * numRows * 2 + j * 4 + k * 2) = *(array + indices2[k] * numRows / 2 + j);
-                    *(resolveArray + i * numRows * 2 + j * 4 + k * 2 + 1) = *(array + indices2[k] * numRows / 2 + j + 1);
+                    *(resolveArray + i * numRows * 2 + j * 4 + k * 2 + 1) = *(array + indices2[k] * numRows / 2 + j + 1);   //weave together the quarter lines
                 }
                 else {
                     *(resolveArray + i * numRows * 2 + j * 4 + k * 2) = *(array + indices[k] * numRows / 2 + j);
@@ -194,7 +200,7 @@ void Unscramble(int numRows, unsigned char* array, unsigned char* resolveArray) 
     }
 }
 
-void Scramble(int numRows, unsigned char* toArray, unsigned char* fromArray) {
+void Scramble(int numRows, unsigned char* toArray, unsigned char* fromArray) {    //exact reverse of the above function, to convert bmp image back to game file format
     int order[16] = { 0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15 };
     int indices[4] = { 0,0,0,0 };
     int indices2[4] = { 0,0,0,0 };
@@ -236,23 +242,23 @@ void Scramble(int numRows, unsigned char* toArray, unsigned char* fromArray) {
 
 void WidenArray(unsigned char* imgArray, unsigned char* hexArray, int arraySize) {
     for (int i = 0; i < arraySize/2; i++) {
-        *(hexArray + i * 2) = (*(imgArray + i) >> 4) & 0x0F;
+        *(hexArray + i * 2) = (*(imgArray + i) >> 4) & 0x0F;    //separate the nibbles in 4-bit images into separate bytes to handle them more easily
         *(hexArray + i * 2 + 1) = *(imgArray + i) & 0x0F;
     }
 }
 
 void Palette16Bit(unsigned char paletteRGB[256][3], std::string filename, int offset, int paletteOffset) {
     std::ifstream bits;
-    bits.open(filename, std::ios::binary);
-    bits.seekg(offset + paletteOffset);
+    bits.open(filename, std::ios::binary);   //treating data as binary to ignore bytes that correspond to newlines
+    bits.seekg(offset + paletteOffset);    //go to the palette's location in data
     char bitColor[2] = { '\0','\0' };
     unsigned short bitVal = 0;
     int counter = 0;
     while (counter < 256) {
-        bits.read(bitColor, 2);
-        bitVal = *((unsigned short*)bitColor);
-        paletteRGB[counter][0] = (bitVal & 0x7c00) >> 7;
-        paletteRGB[counter][1] = (bitVal & 0x03e0) >> 2;
+        bits.read(bitColor, 2);    //read two bytes as chars
+        bitVal = *((unsigned short*)bitColor);   //casting to 2-byte value
+        paletteRGB[counter][0] = (bitVal & 0x7c00) >> 7;    //separating the 5-bit colors into separate bytes
+        paletteRGB[counter][1] = (bitVal & 0x03e0) >> 2;    //ignoring the first bit which is transparency
         paletteRGB[counter][2] = (bitVal & 0x001f) << 3;
         counter++;
     }
@@ -260,20 +266,20 @@ void Palette16Bit(unsigned char paletteRGB[256][3], std::string filename, int of
 
 void Palette24Bit(unsigned char paletteRGB[256][3], std::string filename, int offset, int paletteOffset) {
     std::ifstream bits;
-    bits.open(filename, std::ios::binary);
+    bits.open(filename, std::ios::binary);   //similar to the above
     bits.seekg(offset + paletteOffset);
     char bitColor[4] = { '\0','\0' };
     int counter = 0;
     while (counter < 256) {
-        bits.read(bitColor, 4);
+        bits.read(bitColor, 4);    //but no need for bit masking
         paletteRGB[counter][0] = bitColor[2];
-        paletteRGB[counter][1] = bitColor[1];
+        paletteRGB[counter][1] = bitColor[1];   //color order needs to be flipped because original order is BGR
         paletteRGB[counter][2] = bitColor[0];
         counter++;
     }
 }
 
-std::string IntToString3Width(int value) {
+std::string IntToString3Width(int value) {   //to easily get 3-digit numbers as strings
     std::stringstream stream;
     stream << value;
     std::string numStr;
@@ -281,24 +287,22 @@ std::string IntToString3Width(int value) {
     while (numStr.size() < 3) {
         numStr = "0" + numStr;
     }
-    if (value == 1000) {
+    if (value == 1000) {   //for testing purposes, since 1000 is already out of range for 3 digit integers
         return "nightTest";
     }
     return numStr;
 }
 
-int GetBMPSize(std::string fileName) {
-    char discard[28];
+int GetBMPSize(std::string fileName) {  //the first lines of the following function, to quickly find and return height*width from BMP header
+    char discard[18];
     char widthData[4];
     char heightData[4];
-    char pixel[3];
-    short paletteSize = 0;
     std::ifstream imgFile;
     imgFile.open(fileName, std::ios::binary);
-    imgFile.read(discard, 18);
+    imgFile.read(discard, 18);   //skip irrelevant part of header
     imgFile.read(widthData, 4);
     imgFile.read(heightData, 4);
-    return (*(int*)(&widthData) * *(int*)(&heightData));
+    return (*(int*)(&widthData) * *(int*)(&heightData));   //dereference height and width as ints and multiply
 }
 
 
@@ -314,21 +318,21 @@ void loadBMPFile(int numRows, int numChunks, std::string fileName, unsigned char
     imgFile.read(widthData, 4);
     imgFile.read(heightData, 4);
     imgFile.read(discard, 28);
-    int paddingSize = 4 - ((numChunks * CHUNK_SIZE / 2) * 3) % 4;
+    int paddingSize = 4 - ((numChunks * CHUNK_SIZE / 2) * 3) % 4;  //number of padding bytes after each row of pixel data
     if (paddingSize == 4) {
         paddingSize = 0;
     }
     for (int i = 0; i < numRows * 2; i++) {
         for (int j = 0; j < numChunks * CHUNK_SIZE / 2; j++) {
-            imgFile.read(pixel, 3);
-            *(imgArray + i * numChunks * CHUNK_SIZE / 2 + j) = FindInPalette((unsigned char*)pixel, palette, paletteSize);
+            imgFile.read(pixel, 3);     //read in one pixel's data
+            *(imgArray + i * numChunks * CHUNK_SIZE / 2 + j) = FindInPalette((unsigned char*)pixel, palette, paletteSize); //map this pixel to a color in the palette
         }
-        imgFile.read(discard, paddingSize);
+        imgFile.read(discard, paddingSize);  //skip any padding bytes
     }
     for (int i = paletteSize; i < 256; i++) {
         palette[i][0] = 0;
         palette[i][1] = 0;
-        palette[i][2] = 0;
+        palette[i][2] = 0;  //fill empty spaces in the palette with #000000
     }
 
 }
@@ -336,22 +340,22 @@ void loadBMPFile(int numRows, int numChunks, std::string fileName, unsigned char
 unsigned char FindInPalette(unsigned char pixel[3], unsigned char palette[256][3], short& paletteSize) {
     for (int i = 0; i < paletteSize; i++) {
         if (pixel[0] == palette[i][2] && pixel[1] == palette[i][1] && pixel[2] == palette[i][0]) {
-            return i;
+            return i;     //if color already in palette, return index of color
         }
     }
-    if (paletteSize < 256) {
+    if (paletteSize < 256) {   //else, if there's space left in the palette, add the new color and return its index
         palette[paletteSize][2] = pixel[0];
         palette[paletteSize][1] = pixel[1];
         palette[paletteSize][0] = pixel[2];
         paletteSize++;
         return paletteSize - 1;
     }
-    else {
+    else {  //else if palette full, default to 0
         return 0;
     }
 }
 
-void loadGameFile8Bit(int numRows, int width, std::string fileName, char* array, unsigned char palette[256][3], int offset) {
+void loadGameFile8Bit(int numRows, int width, std::string fileName, char* array, unsigned char palette[256][3], int offset, bool switchColorBlocks) {
     std::ifstream imgFile;
     imgFile.open(fileName, std::ios::binary);
     char hex[1] = { 0 };
@@ -360,31 +364,104 @@ void loadGameFile8Bit(int numRows, int width, std::string fileName, char* array,
     while (!imgFile.eof()) {
         imgFile.read(hex, 1);
         if (counter >= offset && counter < offset + (width * (numRows))) {
-            *(array + counter - offset) = *hex;
+            *(array + counter - offset) = *hex;    //store bytes between the offset and end of the image data
         }
         else if (counter > offset + (width * (numRows))) {
-            break;
+            break;    //stop once this end is reached
         }
         counter++;
     }
 
-    for (int i = 8; i < 247; i++) {  //change back to 247
-        if (i % 16 == 0) {
-            i += 24;
+    if (switchColorBlocks) {     //if necessary (8-bit images) unscramble the palette
+        for (int i = 8; i < 247; i++) {  
+            if (i % 16 == 0) {
+                i += 24;
+            }
+            temp[0] = palette[i][0];
+            temp[1] = palette[i][1];
+            temp[2] = palette[i][2];
+            palette[i][0] = palette[i + 8][0];    //switches every other pair of 8-color chunks in the palette
+            palette[i][1] = palette[i + 8][1];
+            palette[i][2] = palette[i + 8][2];
+            palette[i + 8][0] = temp[0];
+            palette[i + 8][1] = temp[1];
+            palette[i + 8][2] = temp[2];
         }
-        temp[0] = palette[i][0];
-        temp[1] = palette[i][1];
-        temp[2] = palette[i][2];
-        palette[i][0] = palette[i + 8][0];
-        palette[i][1] = palette[i + 8][1];
-        palette[i][2] = palette[i + 8][2];
-        palette[i + 8][0] = temp[0];
-        palette[i + 8][1] = temp[1];
-        palette[i + 8][2] = temp[2];
     }
     imgFile.close();
 }
 
+void convert4Bit(unsigned char* array1) {   //unscramble 4-bit image data
+    unsigned char* tempArray = (unsigned char*)malloc(32*32);
+
+    for (int i = 0; i < 16; i++) {     //rearrange 16 sets of 64 contiguous pixels, original order is  0 8 1 9 2 10 3 11 4 12 5 13 6 14 7 15
+        for (int j = 0; j < 64; j++) {   // needs to be rearranged to 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+            if (i % 2 == 0) {
+                *(tempArray + i / 2 * 64 + j) = *(array1 + i * 64 + j);
+            }
+            else {
+                *(tempArray + i/2 * 64 + j + 32*16) = *(array1 + i * 64 + j);   
+            }
+        }
+    }
+
+    for (int i = 0; i < 32*32; i++) {  //load tempArray back into array
+        *(array1 + i) = *(tempArray + i);
+    }
+    free(tempArray);
+
+    for (int i = 0; i < 16; i++) {    //swap every other pair of pixels with the pair of pixels in the following row
+        for (int j = 0; j < 32; j++) {
+            if ((i / 2 % 2 == 0 && (j % 4 == 1 || j % 4 == 2)) || (i / 2 % 2 == 1 && (j % 4 == 0 || j % 4 == 3))) {
+                unsigned char temp = *(array1 + (i * 2 + 1) * 32 + j);
+                *(array1 + (i * 2 + 1) * 32 + j) = *(array1 + i * 2 * 32 + j);
+                *(array1 + i * 2 * 32 + j) = temp;
+            }
+        }
+    }
+    tempArray = (unsigned char*)malloc(32 * 32);
+    
+    for (int i = 0; i < 32; i++) {    //put every 8th pixel in a 32-pixel row next to each other
+        for (int j = 0; j < 32; j++) {
+            *(tempArray + i * 32 + j) = *(array1 + i * 32 + (j % 4) * 8 + j / 4);
+        }
+    }
+    for (int i = 0; i < 32 * 32; i++) {
+        *(array1 + i) = *(tempArray + i);
+    }
+
+    for (int i = 0; i < 16; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 4; k++) {
+                unsigned char temp = *(array1 + (i * 2 + 1) * 32 + j * 8 + 4 + k);  //"unweave" adjacent 4-pixel-wide columns 
+                *(array1 + (i * 2 + 1) * 32 + j * 8 + 4 + k) = *(array1 + i * 2 * 32 + j * 8 + k);
+                *(array1 + i * 2 * 32 + j * 8 + k) = temp;
+            }
+        }
+    }
+
+    for (int i = 0; i < 32; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 4; k++) {
+                if (j % 2 == 1) {
+                    unsigned char temp = *(array1 + i * 32 + j * 8 + 4 + k);  //switch odd pairs of columns
+                    *(array1 + i * 32 + j * 8 + 4 + k) = *(array1 + i * 32 + j * 8 + k);
+                    *(array1 + i * 32 + j * 8 + k) = temp;
+                }
+            }
+        }
+    }
+
+    for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 32; j++) {
+            unsigned char temp = *(array1 + i * 128 + 32 + j);  //one more pass to swap every other pair of rows
+            *(array1 + i * 128 + 32 + j) = *(array1 + i * 128 + 64 + j);
+            *(array1 + i * 128 + 64 + j) = temp;
+        }
+    }
+
+    free(tempArray);
+}
 
 void convertArray(int numRows, int numChunks,
     unsigned char* unscrambleArray,
@@ -946,8 +1023,8 @@ int InputTexture(std::string& inFilePath, std::string& outFilePath, std::string&
 }
 
 void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string& inFileName, std::vector<ImgSpec>& headerInfo) {
-    for (unsigned int i = 0; i < headerInfo.size(); i++) {
-        std::fstream testStream;
+    std::fstream testStream;
+    for (unsigned int i = 0; i < headerInfo.size(); i++) {        
         int offset = headerInfo.at(i).offset;
         int height = headerInfo.at(i).height;
         int width = headerInfo.at(i).width;
@@ -1013,21 +1090,19 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
         }
 
         if (headerInfo.at(i).useNibbles) {
-            loadGameFile8Bit(height, width / 2, inFilePath + inFileName, hexArray, paletteRGB, offset);
+            loadGameFile8Bit(height, width / 2, inFilePath + inFileName, hexArray, paletteRGB, offset, false);
         }
 
         else {
-            loadGameFile8Bit(height, width, inFilePath + inFileName, hexArray, paletteRGB, offset);
+            loadGameFile8Bit(height, width, inFilePath + inFileName, hexArray, paletteRGB, offset, true);
         }
 
-
-
-
-
-
         if (headerInfo.at(i).useNibbles) {
-            //convertArray(numRows, numChunks/2, unscrambleArray, hexArray, hmmArray, finalArray);
+            
             WidenArray((unsigned char*)hexArray, splitFinalArray, width * height);
+            if (width == 32 && height == 32) {
+                convert4Bit(splitFinalArray);
+            }
             writeImgRaw(width, height, bmpHeader, outFilePath + outFileName, paletteRGB, splitFinalArray);
         }
         else {
@@ -1043,6 +1118,7 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
 
 
     }
+    testStream.close();
     std::cout << inFileName << " successfully extracted." << std::endl;
 }
 
