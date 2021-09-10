@@ -8,3 +8,19 @@ Input: Enter the name of a game file to modify. The program will output a list o
 Configure: Enter a home directory and game directory for the program to use. The home directory is where extracted images will be saved and where modified textures can be uploaded from. The game directory is simply where the program will look for NiGHTS Into Dreams files. These will be saved for next time.
 
 Gallery: Outputs all 153 gallery files at once, to save time.
+
+
+To-do list:
+Implement width < 16 4-bit image processing
+Add model ripping to the image tool
+Use transparency bit
+Change image output to 8-bit bmp
+
+Possible goals:
+Make 4-bit image work for all image sizes
+Figure out how texture is chosen per model
+Implement model/UV editing
+Decode rig/animation data
+Change model output to format that supports multiple objects
+Auto merge duplicate vertices and fix norms
+Correctly map SS model textures
