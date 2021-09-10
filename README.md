@@ -11,16 +11,27 @@ Gallery: Outputs all 153 gallery files at once, to save time.
 
 
 To-do list:
+<br/>
 Implement width < 16 4-bit image processing
+<br/>
 Add model ripping to the image tool
+<br/>
 Use transparency bit
+<br/>
 Change image output to 8-bit bmp
 
 Possible goals:
+<br/>
 Make 4-bit image work for all image sizes
+<br/>
 Figure out how texture is chosen per model
+<br/>
 Implement model/UV editing
+<br/>
 Decode rig/animation data
+<br/>
 Change model output to format that supports multiple objects
+<br/>
 Auto merge duplicate vertices and fix norms
+<br/>
 Correctly map SS model textures
