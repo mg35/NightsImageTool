@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <iomanip>
 #include <sys/stat.h>
 #include "ImgSpec.h"
 
@@ -39,6 +40,7 @@ int SetDirectories(std::string& homeDir, std::string& gameDir);
 int InitializeDirectories(std::string& homeDir, std::string& gameDir);
 int InputTexture(std::string& inFilePath, std::string& outFilePath, std::string& inFileName, std::vector<ImgSpec>& headerInfo);
 void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string& inFileName, std::vector<ImgSpec>& headerInfo);
+void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string& inFileName);
 void GenHeaderInfo(std::string inFilePath, std::string inFileName, std::vector<ImgSpec>& headerInfo);
 void convert4Bit(unsigned char* array);
 
@@ -56,7 +58,7 @@ int main() {
     while (mode != 'q') {
         std::cout << "Enter a mode:" << std::endl; 
         std::cout << "    i: input an image to a game file" << std::endl; 
-        std::cout << "    o: output a gamefile to an image folder" << std::endl;      //Print options menu
+        std::cout << "    o: output a game file's models and textures to the home directory" << std::endl;      //Print options menu
         std::cout << "    g: output all gallery images at once" << std::endl; 
         std::cout << "    c: configure directories" << std::endl; 
         std::cout << "    q: quit" << std::endl; 
@@ -128,6 +130,7 @@ int main() {
             //testStream.close();
             GenHeaderInfo(gameDir, fileID, headerInfo);   //once file can be opened, generate header info
             OutputImages(gameDir, homeDir, fileID, headerInfo);   //output all detected images to homeDir
+            OutputModels(gameDir, homeDir, fileID); //output all detected models to homeDir
             std::cout << std::endl;
         }
 
@@ -257,10 +260,18 @@ void Palette16Bit(unsigned char paletteRGB[256][3], std::string filename, int of
     while (counter < 256) {
         bits.read(bitColor, 2);    //read two bytes as chars
         bitVal = *((unsigned short*)bitColor);   //casting to 2-byte value
-        paletteRGB[counter][0] = (bitVal & 0x7c00) >> 7;    //separating the 5-bit colors into separate bytes
-        paletteRGB[counter][1] = (bitVal & 0x03e0) >> 2;    //ignoring the first bit which is transparency
-        paletteRGB[counter][2] = (bitVal & 0x001f) << 3;
-        counter++;
+        if ((bitVal & 0x8000) >> 15) {        //if color not transparent
+            paletteRGB[counter][0] = (bitVal & 0x7c00) >> 7;    //separate the 5-bit colors into separate bytes
+            paletteRGB[counter][1] = (bitVal & 0x03e0) >> 2;    
+            paletteRGB[counter][2] = (bitVal & 0x001f) << 3;
+            counter++;
+        }
+        else {      //if transparent
+            paletteRGB[counter][0] = 0x00;    //set to pure green for testing purposes
+            paletteRGB[counter][1] = 0xFF;
+            paletteRGB[counter][2] = 0x00;
+            counter++;
+        }
     }
 }
 
@@ -268,14 +279,14 @@ void Palette24Bit(unsigned char paletteRGB[256][3], std::string filename, int of
     std::ifstream bits;
     bits.open(filename, std::ios::binary);   //similar to the above
     bits.seekg(offset + paletteOffset);
-    char bitColor[4] = { '\0','\0' };
+    char bitColor[4] = { '\0','\0','\0','\0' };
     int counter = 0;
     while (counter < 256) {
         bits.read(bitColor, 4);    //but no need for bit masking
         paletteRGB[counter][0] = bitColor[2];
         paletteRGB[counter][1] = bitColor[1];   //color order needs to be flipped because original order is BGR
         paletteRGB[counter][2] = bitColor[0];
-        counter++;
+        counter++;     //discard bitColor[3] because it is a meaningless padding byte
     }
 }
 
@@ -392,25 +403,25 @@ void loadGameFile8Bit(int numRows, int width, std::string fileName, char* array,
 }
 
 void convert4Bit(unsigned char* array1) {   //unscramble 4-bit image data
-    unsigned char* tempArray = (unsigned char*)malloc(32*32);
+    unsigned char* tempArray = (unsigned char*)malloc(32 * 32);
 
-    for (int i = 0; i < 16; i++) {     //rearrange 16 sets of 64 contiguous pixels, original order is  0 8 1 9 2 10 3 11 4 12 5 13 6 14 7 15
+    /*for (int i = 0; i < 16; i++) {     //rearrange 16 sets of 64 contiguous pixels, original order is  0 8 1 9 2 10 3 11 4 12 5 13 6 14 7 15
         for (int j = 0; j < 64; j++) {   // needs to be rearranged to 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
             if (i % 2 == 0) {
                 *(tempArray + i / 2 * 64 + j) = *(array1 + i * 64 + j);
             }
             else {
-                *(tempArray + i/2 * 64 + j + 32*16) = *(array1 + i * 64 + j);   
+                *(tempArray + i / 2 * 64 + j + 32 * 16) = *(array1 + i * 64 + j);
             }
         }
     }
 
-    for (int i = 0; i < 32*32; i++) {  //load tempArray back into array
+    for (int i = 0; i < 32 * 32; i++) {  //load tempArray back into array
         *(array1 + i) = *(tempArray + i);
     }
-    free(tempArray);
+    free(tempArray);*/
 
-    for (int i = 0; i < 16; i++) {    //swap every other pair of pixels with the pair of pixels in the following row
+    /*for (int i = 0; i < 16; i++) {    //swap every other pair of pixels with the pair of pixels in the following row
         for (int j = 0; j < 32; j++) {
             if ((i / 2 % 2 == 0 && (j % 4 == 1 || j % 4 == 2)) || (i / 2 % 2 == 1 && (j % 4 == 0 || j % 4 == 3))) {
                 unsigned char temp = *(array1 + (i * 2 + 1) * 32 + j);
@@ -418,19 +429,39 @@ void convert4Bit(unsigned char* array1) {   //unscramble 4-bit image data
                 *(array1 + i * 2 * 32 + j) = temp;
             }
         }
-    }
+    }*/
     tempArray = (unsigned char*)malloc(32 * 32);
-    
+
+    /*for (int i = 0; i < 4; i++) {
+        if (i % 2 == 1) {
+            for (int j = 0; j < 16; j++) {
+                for (int k = 0; k < 8; k++) {
+                    unsigned char temp = *(array1 + (i * 32 * 8) + j * 2 + k * 32);  
+                    *(array1 + (i * 32 * 8) + j * 2 + k * 32) = *(array1 + (i * 32 * 8) + j * 2 + k * 32 + 1);
+                    *(array1 + (i * 32 * 8) + j * 2 + k * 32 + 1) = temp;    //switch certain pixels
+                }
+            }
+        }
+    }*/
+
     for (int i = 0; i < 32; i++) {    //put every 8th pixel in a 32-pixel row next to each other
         for (int j = 0; j < 32; j++) {
             *(tempArray + i * 32 + j) = *(array1 + i * 32 + (j % 4) * 8 + j / 4);
         }
     }
-    for (int i = 0; i < 32 * 32; i++) {
-        *(array1 + i) = *(tempArray + i);
+
+    for (int i = 0; i < 32; i++) {    //interweave every other row
+        for (int j = 0; j < 32; j++) {
+            if (i%2 == 0) {
+                *(array1 + i * 32 + j) = *(tempArray + i / 8 * 8 * 32 + i%8/2 * 32 + j);
+            }
+            else {
+                *(array1 + i * 32 + j) = *(tempArray + i / 8 * 8 * 32 + i%8/2 * 32 + 4 * 32 + j);
+            }
+        }
     }
 
-    for (int i = 0; i < 16; i++) {
+    /*for (int i = 0; i < 16; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
                 unsigned char temp = *(array1 + (i * 2 + 1) * 32 + j * 8 + 4 + k);  //"unweave" adjacent 4-pixel-wide columns 
@@ -438,9 +469,9 @@ void convert4Bit(unsigned char* array1) {   //unscramble 4-bit image data
                 *(array1 + i * 2 * 32 + j * 8 + k) = temp;
             }
         }
-    }
+    }*/
 
-    for (int i = 0; i < 32; i++) {
+    /*for (int i = 0; i < 32; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
                 if (j % 2 == 1) {
@@ -450,15 +481,15 @@ void convert4Bit(unsigned char* array1) {   //unscramble 4-bit image data
                 }
             }
         }
-    }
+    }*/
 
-    for (int i = 0; i < 8; i++) {
+    /*for (int i = 0; i < 8; i++) {
         for (int j = 0; j < 32; j++) {
             unsigned char temp = *(array1 + i * 128 + 32 + j);  //one more pass to swap every other pair of rows
             *(array1 + i * 128 + 32 + j) = *(array1 + i * 128 + 64 + j);
             *(array1 + i * 128 + 64 + j) = temp;
         }
-    }
+    }*/
 
     free(tempArray);
 }
@@ -1041,7 +1072,10 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
         unsigned char* heightP = (unsigned char*)&height;
         unsigned char* widthP = (unsigned char*)&width;
 
-
+        /*if (headerInfo.at(i).useNibbles) {
+            heightP = (unsigned char*)&width;
+            widthP = (unsigned char*)&height;
+        }*/
         unsigned char bmpHeader[0x36] = { 0x42, 0x4D, *bmpNumBytesP, *(bmpNumBytesP + 1), *(bmpNumBytesP + 2),
                                          *(bmpNumBytesP + 3),
                                          0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00,
@@ -1098,11 +1132,70 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
         }
 
         if (headerInfo.at(i).useNibbles) {
-            
+            unsigned char* chunkArray = (unsigned char*)malloc(CHUNK_SIZE*CHUNK_SIZE);
             WidenArray((unsigned char*)hexArray, splitFinalArray, width * height);
-            if (width == 32 && height == 32) {
-                convert4Bit(splitFinalArray);
+            char temp;
+            if (width == 64 && height == 64) {
+                for (int i = 0; i < height; i++) {
+                    if (i / 8 % 2 == 1) {
+                        for (int j = 0; j < width / 4; j++) {
+                            temp = *(splitFinalArray + i * width + j * 2 + 1);
+                            *(splitFinalArray + i * width + j * 2 + 1) = *(splitFinalArray + i * width + width / 2 + j * 2);
+                            *(splitFinalArray + i * width + width / 2 + j * 2) = *(splitFinalArray + i * width + width / 2 + j * 2 + 1);
+                            *(splitFinalArray + i * width + width / 2 + j * 2 + 1) = temp;
+                        }
+                    }
+                    else {
+                        for (int j = 0; j < width / 4; j++) {
+                            temp = *(splitFinalArray + i * width + width / 2 + j * 2);
+                            *(splitFinalArray + i * width + width / 2 + j * 2) = *(splitFinalArray + i * width + j * 2 + 1);
+                            *(splitFinalArray + i * width + j * 2 + 1) = *(splitFinalArray + i * width + j * 2);
+                            *(splitFinalArray + i * width + j * 2) = temp;
+                        }
+                    }
+                }
             }
+
+            
+            for (int w = 0; w < width / CHUNK_SIZE; w++) {
+                for (int h = 0; h < height / CHUNK_SIZE; h++) {
+                    for (int c = 0; c < CHUNK_SIZE; c++) {
+                        for (int d = 0; d < CHUNK_SIZE; d++) {
+                            *(chunkArray + c * CHUNK_SIZE + d) = *(splitFinalArray + h*width*CHUNK_SIZE + c*width + w*CHUNK_SIZE + d);
+                        }
+                    }
+                    convert4Bit(chunkArray);
+                    for (int c = 0; c < CHUNK_SIZE; c++) {
+                        for (int d = 0; d < CHUNK_SIZE; d++) {
+                            *(splitFinalArray + h * width * CHUNK_SIZE + c * width + w * CHUNK_SIZE + d) = *(chunkArray + c * CHUNK_SIZE + d);
+                        }
+                    }
+                }
+            }
+            /*if (width == 32 && height == 32) {
+                convert4Bit(splitFinalArray);
+            }*/
+            free(chunkArray);
+
+            
+            unsigned char* newArray = (unsigned char*)malloc(width*height);
+            if (width*height == 64*64) {
+                for (int i = 0; i < 64; i++) {
+                    for (int j = 0; j < 32; j++) {
+                        if (i % 2 == 1) {
+                            *(newArray + (i - 1) * 2 * 32 + j + 32) = *(splitFinalArray + i % 16 / 4 * 16 * 32 + i / 16 * 4 * 32 + (1 - i / 2 % 2) * 32 + 32 * 64 + j);
+                            *(newArray + (i - 1) * 2 * 32 + j + 32 + 64) = *(splitFinalArray + i % 16 / 4 * 16 * 32 + i / 16 * 4 * 32 + (1 - i / 2 % 2) * 32 + 32 * 64 + j + 64);
+                        }
+                        else {
+                            *(newArray + i * 2 * 32 + j) = *(splitFinalArray + i % 16 / 4 * 16 * 32 + i / 16 * 4 * 32 + (1 - i / 2 % 2) * 32 + j);
+                            *(newArray + i * 2 * 32 + j + 64) = *(splitFinalArray + i % 16 / 4 * 16 * 32 + i / 16 * 4 * 32 + (1 - i / 2 % 2) * 32 + j + 64);
+                        }
+                    }
+                }
+            }
+            free(splitFinalArray);
+            splitFinalArray = newArray;
+
             writeImgRaw(width, height, bmpHeader, outFilePath + outFileName, paletteRGB, splitFinalArray);
         }
         else {
@@ -1119,7 +1212,109 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
 
     }
     testStream.close();
-    std::cout << inFileName << " successfully extracted." << std::endl;
+    std::cout << headerInfo.size() << " images extracted from " << inFileName << "." << std::endl;
+    std::cout << std::endl;
+}
+
+void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string& inFileName) {
+    enum print_mode { VERTEX, TEXTURE_MAP, NO_PRINT };
+    print_mode shouldPrint = NO_PRINT;
+
+    char discard[44];
+    char dword[4];
+
+    float floatVal = 0.0;
+    float vertexXYZ[3];
+    float textureMapXY[2];
+
+    int expectedVertices = 0;
+    int numVertices = 0;
+    int numPolygons = 0;
+    int currVertIndex = 0;
+    int currTexMapIndex = 0;
+    int objectNum = 0;
+
+    std::string fileName;
+    for (unsigned int i = 0; i < inFileName.size() - 4; i++) {
+        fileName.push_back(inFileName.at(i));
+    }
+
+    std::ifstream reader;
+    std::ofstream writer;
+
+    bool tooBig = false;
+
+    reader.open(inFilePath + inFileName, std::ios::binary);
+
+    while (!reader.eof()) {
+        reader.read(dword, 4);
+        if (!((unsigned char)dword[0] == 0x00 && (unsigned char)dword[1] == 0x10 &&
+            (unsigned char)dword[2] == 0x00 && (unsigned char)dword[3] == 0x00)) {
+            break;
+        }
+        writer.open(outFilePath + fileName + "-" + IntToString3Width(objectNum) + ".obj");
+        reader.read(discard, 4);
+        reader.read(dword, 4);
+        expectedVertices = *(unsigned int*)dword;
+
+        while (numVertices < expectedVertices) {
+            reader.read(dword, 4);
+
+            if ((unsigned char)dword[0] == 0x05 && (unsigned char)dword[1] == 0x80 &&
+                (unsigned char)dword[3] == 0x7E) {
+                shouldPrint = NO_PRINT;
+            }
+            if ((unsigned char)dword[0] == 0x04 && (unsigned char)dword[1] == 0x04 &&
+                (unsigned char)dword[2] == 0x00 && (unsigned char)dword[3] == 0x01) {
+                shouldPrint = NO_PRINT;
+            }
+
+            floatVal = *(float*)dword;
+            vertexXYZ[currVertIndex % 3] = floatVal;
+            currVertIndex++;
+            textureMapXY[currTexMapIndex % 2] = floatVal;
+            currTexMapIndex++;
+
+            if (currVertIndex % 3 == 0 && shouldPrint == VERTEX) {
+                writer << std::setprecision(6) << std::fixed << "v " << vertexXYZ[0] << " " << vertexXYZ[1] << " " << vertexXYZ[2] << std::endl;
+            }
+            if (currTexMapIndex % 2 == 0 && shouldPrint == TEXTURE_MAP) {
+                numVertices++;
+                writer << std::setprecision(6) << std::fixed << "vt " << textureMapXY[0] << " " << textureMapXY[1] << std::endl;
+            }
+
+            if ((unsigned char)dword[0] == 0x07 && (unsigned char)dword[1] == 0x80 &&
+                (unsigned char)dword[3] == 0x64) {
+                shouldPrint = TEXTURE_MAP;
+                currTexMapIndex = 0;
+            }
+            if ((unsigned char)dword[0] == 0x04 && (unsigned char)dword[1] == 0x80 &&
+                (unsigned char)dword[3] == 0x78) {
+                for (int i = 0; i < (unsigned char)dword[2] - 2; i++) {
+                    writer << "f " << numVertices + 1 + i << "/" << numVertices + 1 + i << " ";
+                    writer << numVertices + 2 + i << "/" << numVertices + 2 + i << " ";
+                    writer << numVertices + 3 + i << "/" << numVertices + 3 + i << std::endl;
+                    numPolygons++;
+                }
+                shouldPrint = VERTEX;
+                currVertIndex = 0;
+            }
+        }
+
+        std::cout << "Model " << objectNum << ":" << std::endl;
+        std::cout << "    # Polygons: " << numPolygons << std::endl;
+
+        shouldPrint = NO_PRINT;
+        numPolygons = 0;
+        numVertices = 0;
+        reader.read(discard, 4);
+        reader.read(discard, 16 - reader.tellg() % 16);
+        reader.read(discard, 32);
+        objectNum++;
+        writer.close();
+    }
+
+    std::cout << objectNum << " models extracted from " << inFileName << "." << std::endl;
 }
 
 void GenHeaderInfo(std::string inFilePath, std::string inFileName, std::vector<ImgSpec>& headerInfo) {
