@@ -744,7 +744,7 @@ void FindOffset(std::string filename, std::vector<ImgSpec>& headerInfo) {
 
     bool endReached = false;
     bool doubleSize = false;
-    while (!endReached) {
+    while (!endReached && !reader.eof()) {
         reader.read(line, 16);
         if (line[7] == 0x00) {
             doubleSize = true;
@@ -1308,7 +1308,7 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
         numPolygons = 0;
         numVertices = 0;
         reader.read(discard, 4);
-        reader.read(discard, 16 - reader.tellg() % 16);
+        reader.read(discard, (16 - reader.tellg() % 16) % 16);
         reader.read(discard, 32);
         objectNum++;
         writer.close();
