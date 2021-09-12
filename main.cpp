@@ -56,12 +56,12 @@ int main() {
     std::string gameDir;   //input/game directory
 
     while (mode != 'q') {
-        std::cout << "Enter a mode:" << std::endl; 
-        std::cout << "    i: input an image to a game file" << std::endl; 
+        std::cout << "Enter a mode:" << std::endl;
+        std::cout << "    i: input an image to a game file" << std::endl;
         std::cout << "    o: output a game file's models and textures to the home directory" << std::endl;      //Print options menu
-        std::cout << "    g: output all gallery images at once" << std::endl; 
-        std::cout << "    c: configure directories" << std::endl; 
-        std::cout << "    q: quit" << std::endl; 
+        std::cout << "    g: output all gallery images at once" << std::endl;
+        std::cout << "    c: configure directories" << std::endl;
+        std::cout << "    q: quit" << std::endl;
         std::cout << ":";
         std::getline(std::cin, modestr);   //getline to be consistent and avoid messing with cin ignore, since later inputs need getline
         mode = modestr.at(0);              //Trying to avoid string compare issues by using the first char
@@ -80,7 +80,7 @@ int main() {
 
 
         if (mode == 'i') {    //input mode
-            
+
             std::cout << "WARNING: THIS TOOL MAY PERMANENTLY ALTER AND POTENTIALLY CORRUPT GAME FILES. It is highly recommended to create a backup of \n";
             std::cout << gameDir << " \nbefore continuing. Continue? (y/n): ";    //warning
             std::string tempString;
@@ -143,7 +143,7 @@ int main() {
                 continue;
             }
             testIStream.close();
-            std::string fileNameList[8] = {"A01", "A02", "A03", "A04", "B01", "B02", "B03", "B04"};  //for non-numeric gallery file names
+            std::string fileNameList[8] = { "A01", "A02", "A03", "A04", "B01", "B02", "B03", "B04" };  //for non-numeric gallery file names
             for (int i = 1; i < 146; i++) {       //iterate through all numeric gallery files
                 fileID = "GAMEUI_GALLERY_" + IntToString3Width(i) + ".BIN";
                 GenHeaderInfo(gameDir, fileID, headerInfo);
@@ -244,7 +244,7 @@ void Scramble(int numRows, unsigned char* toArray, unsigned char* fromArray) {  
 }
 
 void WidenArray(unsigned char* imgArray, unsigned char* hexArray, int arraySize) {
-    for (int i = 0; i < arraySize/2; i++) {
+    for (int i = 0; i < arraySize / 2; i++) {
         *(hexArray + i * 2) = (*(imgArray + i) >> 4) & 0x0F;    //separate the nibbles in 4-bit images into separate bytes to handle them more easily
         *(hexArray + i * 2 + 1) = *(imgArray + i) & 0x0F;
     }
@@ -262,7 +262,7 @@ void Palette16Bit(unsigned char paletteRGB[256][3], std::string filename, int of
         bitVal = *((unsigned short*)bitColor);   //casting to 2-byte value
         if ((bitVal & 0x8000) >> 15) {        //if color not transparent
             paletteRGB[counter][0] = (bitVal & 0x7c00) >> 7;    //separate the 5-bit colors into separate bytes
-            paletteRGB[counter][1] = (bitVal & 0x03e0) >> 2;    
+            paletteRGB[counter][1] = (bitVal & 0x03e0) >> 2;
             paletteRGB[counter][2] = (bitVal & 0x001f) << 3;
             counter++;
         }
@@ -384,7 +384,7 @@ void loadGameFile8Bit(int numRows, int width, std::string fileName, char* array,
     }
 
     if (switchColorBlocks) {     //if necessary (8-bit images) unscramble the palette
-        for (int i = 8; i < 247; i++) {  
+        for (int i = 8; i < 247; i++) {
             if (i % 16 == 0) {
                 i += 24;
             }
@@ -415,7 +415,6 @@ void convert4Bit(unsigned char* array1) {   //unscramble 4-bit image data
             }
         }
     }
-
     for (int i = 0; i < 32 * 32; i++) {  //load tempArray back into array
         *(array1 + i) = *(tempArray + i);
     }
@@ -436,7 +435,7 @@ void convert4Bit(unsigned char* array1) {   //unscramble 4-bit image data
         if (i % 2 == 1) {
             for (int j = 0; j < 16; j++) {
                 for (int k = 0; k < 8; k++) {
-                    unsigned char temp = *(array1 + (i * 32 * 8) + j * 2 + k * 32);  
+                    unsigned char temp = *(array1 + (i * 32 * 8) + j * 2 + k * 32);
                     *(array1 + (i * 32 * 8) + j * 2 + k * 32) = *(array1 + (i * 32 * 8) + j * 2 + k * 32 + 1);
                     *(array1 + (i * 32 * 8) + j * 2 + k * 32 + 1) = temp;    //switch certain pixels
                 }
@@ -452,11 +451,11 @@ void convert4Bit(unsigned char* array1) {   //unscramble 4-bit image data
 
     for (int i = 0; i < 32; i++) {    //interweave every other row
         for (int j = 0; j < 32; j++) {
-            if (i%2 == 0) {
-                *(array1 + i * 32 + j) = *(tempArray + i / 8 * 8 * 32 + i%8/2 * 32 + j);
+            if (i % 2 == 0) {
+                *(array1 + i * 32 + j) = *(tempArray + i / 8 * 8 * 32 + i % 8 / 2 * 32 + j);
             }
             else {
-                *(array1 + i * 32 + j) = *(tempArray + i / 8 * 8 * 32 + i%8/2 * 32 + 4 * 32 + j);
+                *(array1 + i * 32 + j) = *(tempArray + i / 8 * 8 * 32 + i % 8 / 2 * 32 + 4 * 32 + j);
             }
         }
     }
@@ -464,7 +463,7 @@ void convert4Bit(unsigned char* array1) {   //unscramble 4-bit image data
     /*for (int i = 0; i < 16; i++) {
         for (int j = 0; j < 4; j++) {
             for (int k = 0; k < 4; k++) {
-                unsigned char temp = *(array1 + (i * 2 + 1) * 32 + j * 8 + 4 + k);  //"unweave" adjacent 4-pixel-wide columns 
+                unsigned char temp = *(array1 + (i * 2 + 1) * 32 + j * 8 + 4 + k);  //"unweave" adjacent 4-pixel-wide columns
                 *(array1 + (i * 2 + 1) * 32 + j * 8 + 4 + k) = *(array1 + i * 2 * 32 + j * 8 + k);
                 *(array1 + i * 2 * 32 + j * 8 + k) = temp;
             }
@@ -818,7 +817,7 @@ int SetDirectories(std::string& homeDir, std::string& gameDir) {
     getline(std::cin, homeDir);
     std::ofstream homeWrite;
     homeWrite.open("homeDir.txt");
-    
+
     while (!IsPathExist(homeDir)) {
         std::cout << "Error: The directory does not exist. Enter another, or q to quit: ";
         getline(std::cin, homeDir);
@@ -839,7 +838,7 @@ int SetDirectories(std::string& homeDir, std::string& gameDir) {
     getline(std::cin, gameDir);
     std::ofstream gameWrite;
     gameWrite.open("gameDir.txt");
-   
+
     while (!IsPathExist(gameDir)) {
         std::cout << "Error: The directory does not exist. Enter another, or q to quit: ";
         getline(std::cin, gameDir);
@@ -870,7 +869,7 @@ int SetDirectories(std::string& homeDir, std::string& gameDir) {
         }
         testIStream.close();
     }
-    
+
     return 0;
 }
 
@@ -958,8 +957,8 @@ int InitializeDirectories(std::string& homeDir, std::string& gameDir) {
         }
         testIStream.close();
     }
-    
-    
+
+
     return 0;
 }
 
@@ -1003,7 +1002,7 @@ int InputTexture(std::string& inFilePath, std::string& outFilePath, std::string&
 
     std::cout << "Enter an image filename in the current directory \n(" << outFilePath << ") (case-sensitive): ";
     do {
-        
+
         std::getline(std::cin, tempString);
         testStream.open(outFilePath + tempString, std::ios::in);
         while (!testStream.is_open()) {
@@ -1055,7 +1054,7 @@ int InputTexture(std::string& inFilePath, std::string& outFilePath, std::string&
 
 void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string& inFileName, std::vector<ImgSpec>& headerInfo) {
     std::fstream testStream;
-    for (unsigned int i = 0; i < headerInfo.size(); i++) {        
+    for (unsigned int i = 0; i < headerInfo.size(); i++) {
         int offset = headerInfo.at(i).offset;
         int height = headerInfo.at(i).height;
         int width = headerInfo.at(i).width;
@@ -1097,7 +1096,7 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
         else {
             outFileName = tempString + "-" + IntToString3Width(i) + ".bmp";
         }
-        
+
         testStream.open(outFilePath + outFileName, std::ios::out);
 
         unsigned char paletteRGB[256][3];
@@ -1132,7 +1131,7 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
         }
 
         if (headerInfo.at(i).useNibbles) {
-            unsigned char* chunkArray = (unsigned char*)malloc(CHUNK_SIZE*CHUNK_SIZE);
+            unsigned char* chunkArray = (unsigned char*)malloc(CHUNK_SIZE * CHUNK_SIZE);
             WidenArray((unsigned char*)hexArray, splitFinalArray, width * height);
             char temp;
             if (width == 64 && height == 64) {
@@ -1156,12 +1155,12 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
                 }
             }
 
-            
+
             for (int w = 0; w < width / CHUNK_SIZE; w++) {
                 for (int h = 0; h < height / CHUNK_SIZE; h++) {
                     for (int c = 0; c < CHUNK_SIZE; c++) {
                         for (int d = 0; d < CHUNK_SIZE; d++) {
-                            *(chunkArray + c * CHUNK_SIZE + d) = *(splitFinalArray + h*width*CHUNK_SIZE + c*width + w*CHUNK_SIZE + d);
+                            *(chunkArray + c * CHUNK_SIZE + d) = *(splitFinalArray + h * width * CHUNK_SIZE + c * width + w * CHUNK_SIZE + d);
                         }
                     }
                     convert4Bit(chunkArray);
@@ -1177,9 +1176,9 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
             }*/
             free(chunkArray);
 
-            
-            unsigned char* newArray = (unsigned char*)malloc(width*height);
-            if (width*height == 64*64) {
+
+            unsigned char* newArray = (unsigned char*)malloc(width * height);
+            if (width * height == 64 * 64) {
                 for (int i = 0; i < 64; i++) {
                     for (int j = 0; j < 32; j++) {
                         if (i % 2 == 1) {
@@ -1229,6 +1228,7 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
 
     int expectedVertices = 0;
     int numVertices = 0;
+    int numTotalVerts = 0;
     int numPolygons = 0;
     int currVertIndex = 0;
     int currTexMapIndex = 0;
@@ -1242,9 +1242,8 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
     std::ifstream reader;
     std::ofstream writer;
 
-    bool tooBig = false;
-
     reader.open(inFilePath + inFileName, std::ios::binary);
+    writer.open(outFilePath + fileName + "-models.obj");
 
     while (!reader.eof()) {
         reader.read(dword, 4);
@@ -1252,11 +1251,13 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
             (unsigned char)dword[2] == 0x00 && (unsigned char)dword[3] == 0x00)) {
             break;
         }
-        writer.open(outFilePath + fileName + "-" + IntToString3Width(objectNum) + ".obj");
+        writer << "o " << fileName << "-" << IntToString3Width(objectNum) << std::endl;
         reader.read(discard, 4);
         reader.read(dword, 4);
         expectedVertices = *(unsigned int*)dword;
-
+        std::stringstream vertices;
+        std::stringstream textureVerts;
+        std::stringstream faces;
         while (numVertices < expectedVertices) {
             reader.read(dword, 4);
 
@@ -1276,11 +1277,12 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
             currTexMapIndex++;
 
             if (currVertIndex % 3 == 0 && shouldPrint == VERTEX) {
-                writer << std::setprecision(6) << std::fixed << "v " << vertexXYZ[0] << " " << vertexXYZ[1] << " " << vertexXYZ[2] << std::endl;
+                vertices << std::setprecision(6) << std::fixed << "v " << vertexXYZ[0] << " " << vertexXYZ[1] << " " << vertexXYZ[2] << std::endl;
             }
             if (currTexMapIndex % 2 == 0 && shouldPrint == TEXTURE_MAP) {
                 numVertices++;
-                writer << std::setprecision(6) << std::fixed << "vt " << textureMapXY[0] << " " << textureMapXY[1] << std::endl;
+                numTotalVerts++;
+                textureVerts << std::setprecision(6) << std::fixed << "vt " << textureMapXY[0] << " " << textureMapXY[1] << std::endl;
             }
 
             if ((unsigned char)dword[0] == 0x07 && (unsigned char)dword[1] == 0x80 &&
@@ -1291,15 +1293,16 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
             if ((unsigned char)dword[0] == 0x04 && (unsigned char)dword[1] == 0x80 &&
                 (unsigned char)dword[3] == 0x78) {
                 for (int i = 0; i < (unsigned char)dword[2] - 2; i++) {
-                    writer << "f " << numVertices + 1 + i << "/" << numVertices + 1 + i << " ";
-                    writer << numVertices + 2 + i << "/" << numVertices + 2 + i << " ";
-                    writer << numVertices + 3 + i << "/" << numVertices + 3 + i << std::endl;
+                    faces << "f " << numTotalVerts + 1 + i << "/" << numTotalVerts + 1 + i << " ";
+                    faces << numTotalVerts + 2 + i << "/" << numTotalVerts + 2 + i << " ";
+                    faces << numTotalVerts + 3 + i << "/" << numTotalVerts + 3 + i << std::endl;
                     numPolygons++;
                 }
                 shouldPrint = VERTEX;
                 currVertIndex = 0;
             }
         }
+        writer << vertices.str() << textureVerts.str() << faces.str();
 
         std::cout << "Model " << objectNum << ":" << std::endl;
         std::cout << "    # Polygons: " << numPolygons << std::endl;
@@ -1311,9 +1314,9 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
         reader.read(discard, (16 - reader.tellg() % 16) % 16);
         reader.read(discard, 32);
         objectNum++;
-        writer.close();
+       
     }
-
+    writer.close();
     std::cout << objectNum << " models extracted from " << inFileName << "." << std::endl;
 }
 
