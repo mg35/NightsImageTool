@@ -43,6 +43,7 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
 void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string& inFileName);
 void GenHeaderInfo(std::string inFilePath, std::string inFileName, std::vector<ImgSpec>& headerInfo);
 void convert4Bit(unsigned char* array);
+void convert32x32(unsigned char* array1);
 
 
 
@@ -400,6 +401,78 @@ void loadGameFile8Bit(int numRows, int width, std::string fileName, char* array,
         }
     }
     imgFile.close();
+}
+
+void convert32x32(unsigned char* array1) {
+    unsigned char* tempArray = (unsigned char*)malloc(32 * 32);
+
+    for (int i = 0; i < 16; i++) {     //rearrange 16 sets of 64 contiguous pixels, original order is  0 8 1 9 2 10 3 11 4 12 5 13 6 14 7 15
+        for (int j = 0; j < 64; j++) {   // needs to be rearranged to 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+            if (i % 2 == 0) {
+                *(tempArray + i / 2 * 64 + j) = *(array1 + i * 64 + j);
+            }
+            else {
+                *(tempArray + i / 2 * 64 + j + 32 * 16) = *(array1 + i * 64 + j);
+            }
+        }
+    }
+
+    for (int i = 0; i < 32 * 32; i++) {  //load tempArray back into array
+        *(array1 + i) = *(tempArray + i);
+    }
+    free(tempArray);
+
+    for (int i = 0; i < 16; i++) {    //swap every other pair of pixels with the pair of pixels in the following row
+        for (int j = 0; j < 32; j++) {
+            if ((i / 2 % 2 == 0 && (j % 4 == 1 || j % 4 == 2)) || (i / 2 % 2 == 1 && (j % 4 == 0 || j % 4 == 3))) {
+                unsigned char temp = *(array1 + (i * 2 + 1) * 32 + j);
+                *(array1 + (i * 2 + 1) * 32 + j) = *(array1 + i * 2 * 32 + j);
+                *(array1 + i * 2 * 32 + j) = temp;
+            }
+        }
+    }
+    tempArray = (unsigned char*)malloc(32 * 32);
+
+    for (int i = 0; i < 32; i++) {    //put every 8th pixel in a 32-pixel row next to each other
+        for (int j = 0; j < 32; j++) {
+            *(tempArray + i * 32 + j) = *(array1 + i * 32 + (j % 4) * 8 + j / 4);
+        }
+    }
+    for (int i = 0; i < 32 * 32; i++) {
+        *(array1 + i) = *(tempArray + i);
+    }
+
+    for (int i = 0; i < 16; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 4; k++) {
+                unsigned char temp = *(array1 + (i * 2 + 1) * 32 + j * 8 + 4 + k);  //"unweave" adjacent 4-pixel-wide columns 
+                *(array1 + (i * 2 + 1) * 32 + j * 8 + 4 + k) = *(array1 + i * 2 * 32 + j * 8 + k);
+                *(array1 + i * 2 * 32 + j * 8 + k) = temp;
+            }
+        }
+    }
+
+    for (int i = 0; i < 32; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 4; k++) {
+                if (j % 2 == 1) {
+                    unsigned char temp = *(array1 + i * 32 + j * 8 + 4 + k);  //switch odd pairs of columns
+                    *(array1 + i * 32 + j * 8 + 4 + k) = *(array1 + i * 32 + j * 8 + k);
+                    *(array1 + i * 32 + j * 8 + k) = temp;
+                }
+            }
+        }
+    }
+
+    for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 32; j++) {
+            unsigned char temp = *(array1 + i * 128 + 32 + j);  //one more pass to swap every other pair of rows
+            *(array1 + i * 128 + 32 + j) = *(array1 + i * 128 + 64 + j);
+            *(array1 + i * 128 + 64 + j) = temp;
+        }
+    }
+
+    free(tempArray);
 }
 
 void convert4Bit(unsigned char* array1) {   //unscramble 4-bit image data
@@ -1132,6 +1205,7 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
 
         if (headerInfo.at(i).useNibbles) {
             unsigned char* chunkArray = (unsigned char*)malloc(CHUNK_SIZE * CHUNK_SIZE);
+            unsigned char* newArray = (unsigned char*)malloc(width * height);
             WidenArray((unsigned char*)hexArray, splitFinalArray, width * height);
             char temp;
             if (width == 64 && height == 64) {
@@ -1153,32 +1227,21 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
                         }
                     }
                 }
-            }
-
-
-            for (int w = 0; w < width / CHUNK_SIZE; w++) {
-                for (int h = 0; h < height / CHUNK_SIZE; h++) {
-                    for (int c = 0; c < CHUNK_SIZE; c++) {
-                        for (int d = 0; d < CHUNK_SIZE; d++) {
-                            *(chunkArray + c * CHUNK_SIZE + d) = *(splitFinalArray + h * width * CHUNK_SIZE + c * width + w * CHUNK_SIZE + d);
+                for (int w = 0; w < width / CHUNK_SIZE; w++) {
+                    for (int h = 0; h < height / CHUNK_SIZE; h++) {
+                        for (int c = 0; c < CHUNK_SIZE; c++) {
+                            for (int d = 0; d < CHUNK_SIZE; d++) {
+                                *(chunkArray + c * CHUNK_SIZE + d) = *(splitFinalArray + h * width * CHUNK_SIZE + c * width + w * CHUNK_SIZE + d);
+                            }
                         }
-                    }
-                    convert4Bit(chunkArray);
-                    for (int c = 0; c < CHUNK_SIZE; c++) {
-                        for (int d = 0; d < CHUNK_SIZE; d++) {
-                            *(splitFinalArray + h * width * CHUNK_SIZE + c * width + w * CHUNK_SIZE + d) = *(chunkArray + c * CHUNK_SIZE + d);
+                        convert4Bit(chunkArray);
+                        for (int c = 0; c < CHUNK_SIZE; c++) {
+                            for (int d = 0; d < CHUNK_SIZE; d++) {
+                                *(splitFinalArray + h * width * CHUNK_SIZE + c * width + w * CHUNK_SIZE + d) = *(chunkArray + c * CHUNK_SIZE + d);
+                            }
                         }
                     }
                 }
-            }
-            /*if (width == 32 && height == 32) {
-                convert4Bit(splitFinalArray);
-            }*/
-            free(chunkArray);
-
-
-            unsigned char* newArray = (unsigned char*)malloc(width * height);
-            if (width * height == 64 * 64) {
                 for (int i = 0; i < 64; i++) {
                     for (int j = 0; j < 32; j++) {
                         if (i % 2 == 1) {
@@ -1191,11 +1254,18 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
                         }
                     }
                 }
+                free(splitFinalArray);
+                splitFinalArray = newArray;
             }
-            free(splitFinalArray);
-            splitFinalArray = newArray;
+
+
+            else if (width == 32 && height == 32) {
+                convert32x32(splitFinalArray);
+            }
 
             writeImgRaw(width, height, bmpHeader, outFilePath + outFileName, paletteRGB, splitFinalArray);
+            free(chunkArray);
+            //free(newArray);
         }
         else {
             convertArray(numRows, numChunks, unscrambleArray, hexArray, hmmArray, finalArray);
@@ -1207,7 +1277,6 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
         free(unscrambleArray);
         free(hmmArray);
         free(finalArray);
-
 
     }
     testStream.close();
