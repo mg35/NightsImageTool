@@ -20,6 +20,7 @@ void Unscramble(int numRows, unsigned char* array, unsigned char* resolveArray);
 std::string IntToString3Width(int value);
 unsigned char FindInPalette(unsigned char pixel[3], unsigned char palette[256][3], short& paletteSize);
 void loadGameFile8Bit(int numRows, int width, std::string fileName, char* array, unsigned char palette[256][3], int offset, bool switchColorBlocks);
+void loadGameFile16Bit(int numRows, int width, std::string fileName, unsigned short* array, int offset);
 int GetBMPSize(std::string fileName);
 void loadBMPFile(int numRows, int numChunks, std::string fileName, unsigned char palette[256][3], unsigned char* imgArray);
 void WidenArray(unsigned char* imgArray, unsigned char* hexarray, int arraySize);
@@ -128,10 +129,9 @@ int main() {
                     testStream.open(gameDir + fileID);
                 }
             }
-            //testStream.close();
+            OutputModels(gameDir, homeDir, fileID); //output all detected models to homeDir
             GenHeaderInfo(gameDir, fileID, headerInfo);   //once file can be opened, generate header info
             OutputImages(gameDir, homeDir, fileID, headerInfo);   //output all detected images to homeDir
-            OutputModels(gameDir, homeDir, fileID); //output all detected models to homeDir
             std::cout << std::endl;
         }
 
@@ -280,14 +280,15 @@ void Palette24Bit(unsigned char paletteRGB[256][3], std::string filename, int of
     std::ifstream bits;
     bits.open(filename, std::ios::binary);   //similar to the above
     bits.seekg(offset + paletteOffset);
-    char bitColor[4] = { '\0','\0','\0','\0' };
+    char bitColor[3] = { '\0','\0','\0' };
     int counter = 0;
     while (counter < 256) {
-        bits.read(bitColor, 4);    //but no need for bit masking
+        bits.read(bitColor, 3);    //but no need for bit masking
         paletteRGB[counter][0] = bitColor[2];
         paletteRGB[counter][1] = bitColor[1];   //color order needs to be flipped because original order is BGR
         paletteRGB[counter][2] = bitColor[0];
-        counter++;     //discard bitColor[3] because it is a meaningless padding byte
+        counter++;     
+        bits.read(bitColor, 1);
     }
 }
 
@@ -399,6 +400,25 @@ void loadGameFile8Bit(int numRows, int width, std::string fileName, char* array,
             palette[i + 8][1] = temp[1];
             palette[i + 8][2] = temp[2];
         }
+    }
+    imgFile.close();
+}
+
+void loadGameFile16Bit(int numRows, int width, std::string fileName, unsigned short* array, int offset) {
+    std::ifstream imgFile;
+    imgFile.open(fileName, std::ios::binary);
+    char hexes[2] = { 0, 0 };
+    int counter = 0;
+    imgFile.seekg(offset);
+    while (!imgFile.eof()) {
+        imgFile.read(hexes, 2);
+        if (counter < (width * numRows)) {
+            *(array + counter) = *(unsigned short *) hexes;    //store bytes between the offset and end of the image data
+        }
+        else {
+            break;    //stop once this end is reached
+        }
+        counter += 1;
     }
     imgFile.close();
 }
@@ -663,6 +683,25 @@ void writeImgFile(int numRows, int numChunks, unsigned char* bmpHeader, std::str
     imgConverted.close();
 }
 
+void writeImgFile16Bit(int height, int width, unsigned char* bmpHeader, std::string filename, unsigned short* finalArray) {
+    std::ofstream imgConverted;
+    std::string outFilePath = filename;
+    imgConverted.open(outFilePath, std::ios::binary);
+    imgConverted.write((char*)bmpHeader, 0x36);
+    unsigned char RGBpixel[3] = { 0, 0, 0 };
+    unsigned short bitVal = 0;
+    for (int i = 0; i < height*width; i++) {
+        bitVal = *(finalArray + i);
+        RGBpixel[0] = (bitVal & 0x7c00) >> 7;    //separate the 5-bit colors into separate bytes
+        RGBpixel[1] = (bitVal & 0x03e0) >> 2;
+        RGBpixel[2] = (bitVal & 0x001f) << 3;
+
+        imgConverted.write((char*)RGBpixel, 3);
+    }
+
+    imgConverted.close();
+}
+
 void writeImgRaw(int width, int height, unsigned char* bmpHeader, std::string filename, unsigned char palette[256][3],
     unsigned char* finalArray) {
     std::ofstream imgConverted;
@@ -678,7 +717,7 @@ void writeImgRaw(int width, int height, unsigned char* bmpHeader, std::string fi
     imgConverted.close();
 }
 
-void writeRaw(int numRows, int numChunks, char* bmpHeader, std::string filename, unsigned char palette[256][3],
+/*void writeRaw(int numRows, int numChunks, char* bmpHeader, std::string filename, unsigned char palette[256][3],
     unsigned char* hexArray) {
     std::ofstream imgConverted;
     std::string outFilePath = filename;
@@ -700,7 +739,7 @@ void writeRaw(int numRows, int numChunks, char* bmpHeader, std::string filename,
         imgConverted.write(b, 1);
     }
     imgConverted.close();
-}
+}*/
 
 void writeGameFile24Bit(int numRows, int numChunks, std::string fileName, unsigned char palette[256][3], unsigned char* imgArray, int offset) {
     std::fstream imgConverted;
@@ -818,6 +857,22 @@ void FindOffset(std::string filename, std::vector<ImgSpec>& headerInfo) {
     bool doubleSize = false;
     while (!endReached && !reader.eof()) {
         reader.read(line, 16);
+        /*if (line[6] > 4) {
+            currInfo.pixelEncoding = SIXTEEN_BIT;
+            currInfo.smallColors = false;
+        }*/
+        /*if (line[4] == 16 && line[5] == 2) {
+            currInfo.pixelEncoding = SIXTEEN_BIT;
+            currInfo.smallColors = false;
+        }
+        if (line[4] == 0x40 && line[5] == 4) {
+            currInfo.pixelEncoding = SIXTEEN_BIT;
+            currInfo.smallColors = false;
+        }*/
+        /*if (headerInfo.size() == 95 || headerInfo.size() == 96) {
+            currInfo.pixelEncoding = SIXTEEN_BIT;
+            currInfo.smallColors = false;
+        }*/
         if (line[7] == 0x00) {
             doubleSize = true;
         }
@@ -834,6 +889,18 @@ void FindOffset(std::string filename, std::vector<ImgSpec>& headerInfo) {
             currInfo.width = *((int*)&line[0]);
             currInfo.height = *((int*)(&line[4]));
         }
+        if (currInfo.pixelEncoding == SIXTEEN_BIT) {
+            currInfo.height /= 2;
+            reader.read(discard, 64);
+            reader.read(line, 16);
+            counter += 128;
+            headerInfo.push_back(currInfo);
+            currInfo.pixelEncoding = EIGHT_BIT;
+            if (*((int*)&line) == 0xFFFFFFFF) {
+                endReached = true;
+            }
+            continue;
+        }
         reader.read(discard, 80);
         reader.read(line, 16);
         if (line[7] == 0) {
@@ -846,11 +913,8 @@ void FindOffset(std::string filename, std::vector<ImgSpec>& headerInfo) {
         reader.read(discard, 64);
         reader.read(line, 16);
 
-        if (line[0] != 0x02) {
-            currInfo.useNibbles = false;
-        }
-        else {
-            currInfo.useNibbles = true;
+        if (line[0] == 0x02)  {
+            currInfo.pixelEncoding = FOUR_BIT;
             if (doubleSize) {
                 currInfo.height *= 2;
             }
@@ -861,6 +925,7 @@ void FindOffset(std::string filename, std::vector<ImgSpec>& headerInfo) {
 
         counter += 256;
         headerInfo.push_back(currInfo);
+        currInfo.pixelEncoding = EIGHT_BIT;
         if (*((int*)&line) == 0xFFFFFFFF) {
             endReached = true;
         }
@@ -870,8 +935,11 @@ void FindOffset(std::string filename, std::vector<ImgSpec>& headerInfo) {
     int initOffset = (256 - counter % 256) + counter;
     for (int i = 0; i < headerInfo.size(); i++) {
         headerInfo.at(i).offset = initOffset;
-        if (headerInfo.at(i).smallColors) {
-            if (headerInfo.at(i).useNibbles) {
+        if (headerInfo.at(i).pixelEncoding == SIXTEEN_BIT) {
+            initOffset += headerInfo.at(i).width * headerInfo.at(i).height * 2;
+        }
+        else if (headerInfo.at(i).smallColors) {                 //FIX THIS 
+            if (headerInfo.at(i).pixelEncoding == FOUR_BIT) {
                 initOffset += headerInfo.at(i).width * headerInfo.at(i).height / 2 + 32;
             }
             else {
@@ -1044,11 +1112,11 @@ int InputTexture(std::string& inFilePath, std::string& outFilePath, std::string&
     std::stringstream tempStream;
     tempStream << tempString;
     tempStream >> index;
-    while (index < 0 || index >= headerInfo.size() || headerInfo.at(index).useNibbles) {
+    while (index < 0 || index >= headerInfo.size() || headerInfo.at(index).pixelEncoding == FOUR_BIT) {           //Keep asking for input until the input is valid (not out of range and not 4-bit)
         if (index < 0 || index >= headerInfo.size()) {
             std::cout << "That index is out of range. Enter another image index or q to quit: ";
         }
-        else if (headerInfo.at(index).useNibbles) {
+        else if (headerInfo.at(index).pixelEncoding == FOUR_BIT) {
             std::cout << "Writing 4-bit images is currently unsupported. Enter another image index or q to quit: ";
         }
         getline(std::cin, tempString);
@@ -1134,7 +1202,7 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
         int numRows = height / 2;
         int numChunks = width / 16;
         int paletteOffset = width * height;
-        if (headerInfo.at(i).useNibbles) {
+        if (headerInfo.at(i).pixelEncoding == FOUR_BIT) {
             paletteOffset /= 2;
         }
 
@@ -1178,32 +1246,42 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
         char* hexArray = nullptr;
         unsigned char* finalArray = nullptr;
         unsigned char* splitFinalArray = (unsigned char*)malloc(width * height);
-        if (headerInfo.at(i).useNibbles) {
+
+        if (headerInfo.at(i).pixelEncoding == SIXTEEN_BIT) {
+            unsigned short* shortArray = (unsigned short*)malloc(width * height * 2);
+            unsigned short* shortArray2 = (unsigned short*)malloc(width * height * 2);
+            loadGameFile16Bit(height, width, inFilePath + inFileName, shortArray, offset);
+            for (int i = 0; i < height; i++) {
+                for (int j = 0; j < width/16; j++) {
+                    for (int k = 0; k < 16; k++) {
+                        *(shortArray2 + i * width + j*16 + k % 2 * 8 + k / 2) = *(shortArray + i * width + j * 16 + k);
+                    }
+                }
+            }
+            for (int i = 0; i < height; i++) {
+                for (int j = 0; j < width; j++) {
+                    *(shortArray + i * width + j) = *(shortArray2 + i * width + j);
+                }
+            }
+            writeImgFile16Bit(height, width, bmpHeader, outFilePath + outFileName, shortArray);
+            free(shortArray);
+            free(shortArray2);
+        }
+
+        else {
+            if (headerInfo.at(i).smallColors) {
+                Palette16Bit(paletteRGB, inFilePath + inFileName, offset, paletteOffset);
+            }
+            else {
+                Palette24Bit(paletteRGB, inFilePath + inFileName, offset, paletteOffset);
+            }
+        }
+
+
+        if (headerInfo.at(i).pixelEncoding == FOUR_BIT) {
             hexArray = (char*)malloc(width * height / 2);
             finalArray = (unsigned char*)malloc(width * height / 2);
-        }
-        else {
-            hexArray = (char*)malloc(numRows * numChunks * CHUNK_SIZE);
-            finalArray = (unsigned char*)malloc(numRows * numChunks * CHUNK_SIZE);
-        }
-
-
-        if (headerInfo.at(i).smallColors) {
-            Palette16Bit(paletteRGB, inFilePath + inFileName, offset, paletteOffset);
-        }
-        else {
-            Palette24Bit(paletteRGB, inFilePath + inFileName, offset, paletteOffset);
-        }
-
-        if (headerInfo.at(i).useNibbles) {
             loadGameFile8Bit(height, width / 2, inFilePath + inFileName, hexArray, paletteRGB, offset, false);
-        }
-
-        else {
-            loadGameFile8Bit(height, width, inFilePath + inFileName, hexArray, paletteRGB, offset, true);
-        }
-
-        if (headerInfo.at(i).useNibbles) {
             unsigned char* chunkArray = (unsigned char*)malloc(CHUNK_SIZE * CHUNK_SIZE);
             unsigned char* newArray = (unsigned char*)malloc(width * height);
             WidenArray((unsigned char*)hexArray, splitFinalArray, width * height);
@@ -1265,18 +1343,31 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
 
             writeImgRaw(width, height, bmpHeader, outFilePath + outFileName, paletteRGB, splitFinalArray);
             free(chunkArray);
-            //free(newArray);
+            free(hexArray);
+            free(finalArray);
         }
-        else {
-            convertArray(numRows, numChunks, unscrambleArray, hexArray, hmmArray, finalArray);
-            writeImgFile(numRows, numChunks, bmpHeader, outFilePath + outFileName, paletteRGB, finalArray);
+        
+        else if (headerInfo.at(i).pixelEncoding == EIGHT_BIT) {
+            hexArray = (char*)malloc(width*height);
+            finalArray = (unsigned char*)malloc(width * height);
+            loadGameFile8Bit(height, width, inFilePath + inFileName, hexArray, paletteRGB, offset, true);
+                        
+            if (width >= CHUNK_SIZE) {
+                convertArray(numRows, numChunks, unscrambleArray, hexArray, hmmArray, finalArray);
+                writeImgFile(numRows, numChunks, bmpHeader, outFilePath + outFileName, paletteRGB, finalArray);
+            }
+            else {
+                writeImgRaw(width, height, bmpHeader, outFilePath + outFileName, paletteRGB, (unsigned char*)hexArray);
+            }
+
+            free(hexArray);
+            free(finalArray);
         }
 
         free(splitFinalArray);
-        free(hexArray);
         free(unscrambleArray);
         free(hmmArray);
-        free(finalArray);
+        
 
     }
     testStream.close();
@@ -1397,18 +1488,26 @@ void GenHeaderInfo(std::string inFilePath, std::string inFileName, std::vector<I
         std::cout << "Image " << i << ":" << std::endl;
         std::cout << "    Offset (bytes) in " << inFileName << ": " << headerInfo.at(i).offset << std::endl;
         std::cout << "    Size: " << headerInfo.at(i).width << "x" << headerInfo.at(i).height << std::endl;
-        if (headerInfo.at(i).smallColors) {
-            std::cout << "    Color format: 16-bit" << std::endl;
+        if (headerInfo.at(i).pixelEncoding == SIXTEEN_BIT) {
+            std::cout << "    Palette format: No palette" << std::endl;
         }
         else {
-            std::cout << "    Color format: 24-bit" << std::endl;
+            if (headerInfo.at(i).smallColors) {
+                std::cout << "    Palette format: 16-bit" << std::endl;
+            }
+            else {
+                std::cout << "    Palette format: 24-bit" << std::endl;
+            }
         }
 
-        if (headerInfo.at(i).useNibbles) {
+        if (headerInfo.at(i).pixelEncoding == FOUR_BIT) {
             std::cout << "    Pixel encoding: 4-bit (Note: 4-bit image conversion not yet implemented)" << std::endl;
         }
-        else {
+        else if (headerInfo.at(i).pixelEncoding == EIGHT_BIT) {
             std::cout << "    Pixel encoding: 8-bit" << std::endl;
+        }
+        else {
+            std::cout << "    Pixel encoding: 16-bit" << std::endl;
         }
     }
 }
