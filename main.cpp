@@ -41,7 +41,7 @@ int SetDirectories(std::string& homeDir, std::string& gameDir);
 int InitializeDirectories(std::string& homeDir, std::string& gameDir);
 int InputTexture(std::string& inFilePath, std::string& outFilePath, std::string& inFileName, std::vector<ImgSpec>& headerInfo);
 void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string& inFileName, std::vector<ImgSpec>& headerInfo);
-void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string& inFileName);
+void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string& inFileName, int numMats);
 void GenHeaderInfo(std::string inFilePath, std::string inFileName, std::vector<ImgSpec>& headerInfo);
 void convert4Bit(unsigned char* array);
 void convert32x32(unsigned char* array1);
@@ -129,8 +129,8 @@ int main() {
                     testStream.open(gameDir + fileID);
                 }
             }
-            OutputModels(gameDir, homeDir, fileID); //output all detected models to homeDir
             GenHeaderInfo(gameDir, fileID, headerInfo);   //once file can be opened, generate header info
+            OutputModels(gameDir, homeDir, fileID, headerInfo.size()); //output all detected models to homeDir            
             OutputImages(gameDir, homeDir, fileID, headerInfo);   //output all detected images to homeDir
             std::cout << std::endl;
         }
@@ -864,15 +864,15 @@ void FindOffset(std::string filename, std::vector<ImgSpec>& headerInfo) {
         /*if (line[4] == 16 && line[5] == 2) {
             currInfo.pixelEncoding = SIXTEEN_BIT;
             currInfo.smallColors = false;
-        }
-        if (line[4] == 0x40 && line[5] == 4) {
+        }*/
+        /*if (headerInfo.size() == 195 || headerInfo.size() == 197) {
             currInfo.pixelEncoding = SIXTEEN_BIT;
             currInfo.smallColors = false;
-        }*/
-        /*if (headerInfo.size() == 95 || headerInfo.size() == 96) {
+        }*/ //for DITEM_XMAS_PIA_PS2.BIN
+        /*if (headerInfo.size() == 51 || headerInfo.size() == 52 || headerInfo.size() == 131 || headerInfo.size() == 132 || headerInfo.size() == 133 || headerInfo.size() == 212) {
             currInfo.pixelEncoding = SIXTEEN_BIT;
             currInfo.smallColors = false;
-        }*/
+        }*/ //for DITEM_COM_PS2.BIN
         if (line[7] == 0x00) {
             doubleSize = true;
         }
@@ -1375,7 +1375,7 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
     std::cout << std::endl;
 }
 
-void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string& inFileName) {
+void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string& inFileName, int numMats) {
     enum print_mode { VERTEX, TEXTURE_MAP, NO_PRINT };
     print_mode shouldPrint = NO_PRINT;
 
@@ -1393,6 +1393,7 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
     int currVertIndex = 0;
     int currTexMapIndex = 0;
     int objectNum = 0;
+    int currVertGroup = 0;
 
     std::string fileName;
     for (unsigned int i = 0; i < inFileName.size() - 4; i++) {
@@ -1401,10 +1402,12 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
 
     std::ifstream reader;
     std::ofstream writer;
+    std::ofstream mtlWriter;
 
     reader.open(inFilePath + inFileName, std::ios::binary);
     writer.open(outFilePath + fileName + "-models.obj");
-
+    mtlWriter.open(outFilePath + fileName + ".mtl");
+    writer << "mtllib " << fileName << ".mtl" << std::endl;
     while (!reader.eof()) {
         reader.read(dword, 4);
         if (!((unsigned char)dword[0] == 0x00 && (unsigned char)dword[1] == 0x10 &&
@@ -1412,6 +1415,7 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
             break;
         }
         writer << "o " << fileName << "-" << IntToString3Width(objectNum) << std::endl;
+        printf("Offset: %x\n", (int)reader.tellg());
         reader.read(discard, 4);
         reader.read(dword, 4);
         expectedVertices = *(unsigned int*)dword;
@@ -1450,6 +1454,22 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
                 shouldPrint = TEXTURE_MAP;
                 currTexMapIndex = 0;
             }
+
+
+            if ((unsigned char)dword[0] == 0xFE && (unsigned char)dword[1] == 0xFF &&
+                (unsigned char)dword[2] == 0xFF && (unsigned char)dword[3] == 0xFF) {
+                reader.read(dword, 4);
+                faces << "usemtl m" << *(unsigned int *)dword / 2 << std::endl;
+                mtlWriter << "newmtl m" << *(unsigned int*)dword / 2 << std::endl;
+                if (numMats == 1) {
+                    mtlWriter << "map_Kd " << outFilePath << fileName << ".bmp" << std::endl;
+                }
+                else {
+                    mtlWriter << "map_Kd " << outFilePath << fileName << "-" << IntToString3Width(*(unsigned int*)dword / 2) << ".bmp" << std::endl;
+                }
+                currVertGroup++;
+            }
+
             if ((unsigned char)dword[0] == 0x04 && (unsigned char)dword[1] == 0x80 &&
                 (unsigned char)dword[3] == 0x78) {
                 for (int i = 0; i < (unsigned char)dword[2] - 2; i++) {
@@ -1476,6 +1496,7 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
         objectNum++;
        
     }
+    mtlWriter.close();
     writer.close();
     std::cout << objectNum << " models extracted from " << inFileName << "." << std::endl;
 }
