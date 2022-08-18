@@ -873,6 +873,7 @@ void FindOffset(std::string filename, std::vector<ImgSpec>& headerInfo) {
             currInfo.pixelEncoding = SIXTEEN_BIT;
             currInfo.smallColors = false;
         }*/ //for DITEM_COM_PS2.BIN
+        
         if (line[7] == 0x00) {
             doubleSize = true;
         }
@@ -1195,6 +1196,15 @@ int InputTexture(std::string& inFilePath, std::string& outFilePath, std::string&
 
 void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string& inFileName, std::vector<ImgSpec>& headerInfo) {
     std::fstream testStream;
+    std::string fileName2 = inFileName;
+    if (((char)fileName2.at(0) == 'p' || (char)fileName2.at(0) == 'P') && ((char)fileName2.at(1) == 'n' || (char)fileName2.at(1) == 'N')) {
+        if ((char)fileName2.at(0) == 'p') {
+            fileName2.at(0) = 't';
+        }
+        else {
+            fileName2.at(0) = 'T';
+        }
+    }
     for (unsigned int i = 0; i < headerInfo.size(); i++) {
         int offset = headerInfo.at(i).offset;
         int height = headerInfo.at(i).height;
@@ -1226,8 +1236,8 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
                                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
         std::string tempString;
-        for (unsigned int i = 0; i < inFileName.size() - 4; i++) {
-            tempString.push_back(inFileName.at(i));
+        for (unsigned int i = 0; i < fileName2.size() - 4; i++) {
+            tempString.push_back(fileName2.at(i));
         }
         std::string outFileName;
 
@@ -1250,7 +1260,7 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
         if (headerInfo.at(i).pixelEncoding == SIXTEEN_BIT) {
             unsigned short* shortArray = (unsigned short*)malloc(width * height * 2);
             unsigned short* shortArray2 = (unsigned short*)malloc(width * height * 2);
-            loadGameFile16Bit(height, width, inFilePath + inFileName, shortArray, offset);
+            loadGameFile16Bit(height, width, inFilePath + fileName2, shortArray, offset);
             for (int i = 0; i < height; i++) {
                 for (int j = 0; j < width/16; j++) {
                     for (int k = 0; k < 16; k++) {
@@ -1270,10 +1280,10 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
 
         else {
             if (headerInfo.at(i).smallColors) {
-                Palette16Bit(paletteRGB, inFilePath + inFileName, offset, paletteOffset);
+                Palette16Bit(paletteRGB, inFilePath + fileName2, offset, paletteOffset);
             }
             else {
-                Palette24Bit(paletteRGB, inFilePath + inFileName, offset, paletteOffset);
+                Palette24Bit(paletteRGB, inFilePath + fileName2, offset, paletteOffset);
             }
         }
 
@@ -1281,7 +1291,7 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
         if (headerInfo.at(i).pixelEncoding == FOUR_BIT) {
             hexArray = (char*)malloc(width * height / 2);
             finalArray = (unsigned char*)malloc(width * height / 2);
-            loadGameFile8Bit(height, width / 2, inFilePath + inFileName, hexArray, paletteRGB, offset, false);
+            loadGameFile8Bit(height, width / 2, inFilePath + fileName2, hexArray, paletteRGB, offset, false);
             unsigned char* chunkArray = (unsigned char*)malloc(CHUNK_SIZE * CHUNK_SIZE);
             unsigned char* newArray = (unsigned char*)malloc(width * height);
             WidenArray((unsigned char*)hexArray, splitFinalArray, width * height);
@@ -1337,8 +1347,20 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
             }
 
 
-            else if (width == 32 && height == 32) {
-                convert32x32(splitFinalArray);
+            else if (width == 32) {
+                for (int h = 0; h < height / 32; h++) {
+                    convert32x32(splitFinalArray + 32 * 32 * h);
+                }
+            }
+
+            else if (width <= 16) {
+                for (int i = 0; i < height; i++) {
+                    for (int j = 0; j < width; j += 2) {
+                        unsigned char temp = splitFinalArray[i * width + j];
+                        splitFinalArray[i * width + j] = splitFinalArray[i * width + j + 1];
+                        splitFinalArray[i * width + j + 1] = temp;
+                    }
+                }
             }
 
             writeImgRaw(width, height, bmpHeader, outFilePath + outFileName, paletteRGB, splitFinalArray);
@@ -1350,7 +1372,7 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
         else if (headerInfo.at(i).pixelEncoding == EIGHT_BIT) {
             hexArray = (char*)malloc(width*height);
             finalArray = (unsigned char*)malloc(width * height);
-            loadGameFile8Bit(height, width, inFilePath + inFileName, hexArray, paletteRGB, offset, true);
+            loadGameFile8Bit(height, width, inFilePath + fileName2, hexArray, paletteRGB, offset, true);
                         
             if (width >= CHUNK_SIZE) {
                 convertArray(numRows, numChunks, unscrambleArray, hexArray, hmmArray, finalArray);
@@ -1371,12 +1393,12 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
 
     }
     testStream.close();
-    std::cout << headerInfo.size() << " images extracted from " << inFileName << "." << std::endl;
+    std::cout << headerInfo.size() << " images extracted from " << fileName2 << "." << std::endl;
     std::cout << std::endl;
 }
 
 void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string& inFileName, int numMats) {
-    enum print_mode { VERTEX, TEXTURE_MAP, NO_PRINT };
+    enum print_mode { VERTEX, TEXTURE_MAP, NO_PRINT, VERTEX_NORMAL };
     print_mode shouldPrint = NO_PRINT;
 
     char discard[44];
@@ -1384,11 +1406,13 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
 
     float floatVal = 0.0;
     float vertexXYZ[3];
+    float vertexNorm[3];
     float textureMapXY[2];
 
     int expectedVertices = 0;
     int numVertices = 0;
     int numTotalVerts = 0;
+    int totalVertGroups = 0;
     int numPolygons = 0;
     int currVertIndex = 0;
     int currTexMapIndex = 0;
@@ -1396,8 +1420,18 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
     int currVertGroup = 0;
 
     std::string fileName;
+    std::string fileName2;
     for (unsigned int i = 0; i < inFileName.size() - 4; i++) {
         fileName.push_back(inFileName.at(i));
+    }
+    fileName2 = fileName;
+    if (((char)fileName2.at(0) == 'p' || (char)fileName2.at(0) == 'P') && ((char)fileName2.at(1) == 'n' || (char)fileName2.at(1) == 'N')) {
+        if ((char)fileName2.at(0) == 'p') {
+            fileName2.at(0) = 't';
+        }
+        else {
+            fileName2.at(0) = 'T';
+        }
     }
 
     std::ifstream reader;
@@ -1427,14 +1461,24 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
 
             if ((unsigned char)dword[0] == 0x05 && (unsigned char)dword[1] == 0x80 &&
                 (unsigned char)dword[3] == 0x7E) {
+                
+                shouldPrint = VERTEX_NORMAL;
+                reader.read(dword, 4);
+            }
+            if ((unsigned char)dword[0] == 0x06 && (unsigned char)dword[1] == 0xC0 &&
+                (unsigned char)dword[3] == 0x6E) {
                 shouldPrint = NO_PRINT;
             }
             if ((unsigned char)dword[0] == 0x04 && (unsigned char)dword[1] == 0x04 &&
                 (unsigned char)dword[2] == 0x00 && (unsigned char)dword[3] == 0x01) {
                 shouldPrint = NO_PRINT;
+                totalVertGroups++;
             }
 
             floatVal = *(float*)dword;
+            vertexNorm[0] = (float)dword[0];
+            vertexNorm[1] = (float)dword[1];
+            vertexNorm[2] = (float)dword[2];
             vertexXYZ[currVertIndex % 3] = floatVal;
             currVertIndex++;
             textureMapXY[currTexMapIndex % 2] = floatVal;
@@ -1442,6 +1486,9 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
 
             if (currVertIndex % 3 == 0 && shouldPrint == VERTEX) {
                 vertices << std::setprecision(6) << std::fixed << "v " << vertexXYZ[0] << " " << vertexXYZ[1] << " " << vertexXYZ[2] << std::endl;
+            }
+            if (shouldPrint == VERTEX_NORMAL) {
+                //vertices << std::setprecision(6) << std::fixed << "vn " << vertexNorm[0] << " " << vertexNorm[1] << " " << vertexNorm[2] << std::endl;
             }
             if (currTexMapIndex % 2 == 0 && shouldPrint == TEXTURE_MAP) {
                 numVertices++;
@@ -1462,10 +1509,10 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
                 faces << "usemtl m" << *(unsigned int *)dword / 2 << std::endl;
                 mtlWriter << "newmtl m" << *(unsigned int*)dword / 2 << std::endl;
                 if (numMats == 1) {
-                    mtlWriter << "map_Kd " << outFilePath << fileName << ".bmp" << std::endl;
+                    mtlWriter << "map_Kd " << outFilePath << fileName2 << ".bmp" << std::endl;
                 }
                 else {
-                    mtlWriter << "map_Kd " << outFilePath << fileName << "-" << IntToString3Width(*(unsigned int*)dword / 2) << ".bmp" << std::endl;
+                    mtlWriter << "map_Kd " << outFilePath << fileName2 << "-" << IntToString3Width(*(unsigned int*)dword / 2) << ".bmp" << std::endl;
                 }
                 currVertGroup++;
             }
@@ -1473,9 +1520,16 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
             if ((unsigned char)dword[0] == 0x04 && (unsigned char)dword[1] == 0x80 &&
                 (unsigned char)dword[3] == 0x78) {
                 for (int i = 0; i < (unsigned char)dword[2] - 2; i++) {
-                    faces << "f " << numTotalVerts + 1 + i << "/" << numTotalVerts + 1 + i << " ";
-                    faces << numTotalVerts + 2 + i << "/" << numTotalVerts + 2 + i << " ";
-                    faces << numTotalVerts + 3 + i << "/" << numTotalVerts + 3 + i << std::endl;
+                    if (i % 2) {
+                        faces << "f " << numTotalVerts + 1 + i << "/" << numTotalVerts + 1 + i << "/" << numTotalVerts + 1 + i << " ";
+                        faces << numTotalVerts + 2 + i << "/" << numTotalVerts + 2 + i << "/" << numTotalVerts + 2 + i << " ";
+                        faces << numTotalVerts + 3 + i << "/" << numTotalVerts + 3 + i << "/" << numTotalVerts + 3 + i << std::endl;
+                    }
+                    else {
+                        faces << "f " << numTotalVerts + 3 + i << "/" << numTotalVerts + 3 + i << "/" << numTotalVerts + 3 + i << " ";
+                        faces << numTotalVerts + 2 + i << "/" << numTotalVerts + 2 + i << "/" << numTotalVerts + 2 + i << " ";
+                        faces << numTotalVerts + 1 + i << "/" << numTotalVerts + 1 + i << "/" << numTotalVerts + 1 + i << std::endl;
+                    }
                     numPolygons++;
                 }
                 shouldPrint = VERTEX;
@@ -1499,15 +1553,25 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
     mtlWriter.close();
     writer.close();
     std::cout << objectNum << " models extracted from " << inFileName << "." << std::endl;
+    std::cout << totalVertGroups << "lol" << std::endl;
 }
 
 void GenHeaderInfo(std::string inFilePath, std::string inFileName, std::vector<ImgSpec>& headerInfo) {
     headerInfo.clear();
-    FindOffset(inFilePath + inFileName, headerInfo);
+    std::string fileName2 = inFileName;
+    if (((char)fileName2.at(0) == 'p' || (char)fileName2.at(0) == 'P') && ((char)fileName2.at(1) == 'n' || (char)fileName2.at(1) == 'N')) {
+        if ((char)fileName2.at(0) == 'p') {
+            fileName2.at(0) = 't';
+        }
+        else {
+            fileName2.at(0) = 'T';
+        }
+    }
+    FindOffset(inFilePath + fileName2, headerInfo);
     std::cout << headerInfo.size() << " images detected." << std::endl;
     for (int i = 0; i < headerInfo.size(); i++) {
         std::cout << "Image " << i << ":" << std::endl;
-        std::cout << "    Offset (bytes) in " << inFileName << ": " << headerInfo.at(i).offset << std::endl;
+        std::cout << "    Offset (bytes) in " << fileName2 << ": " << headerInfo.at(i).offset << std::endl;
         std::cout << "    Size: " << headerInfo.at(i).width << "x" << headerInfo.at(i).height << std::endl;
         if (headerInfo.at(i).pixelEncoding == SIXTEEN_BIT) {
             std::cout << "    Palette format: No palette" << std::endl;

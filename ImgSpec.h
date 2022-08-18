@@ -5,11 +5,13 @@
 #ifndef TESTPROJ_IMGSPEC_H
 #define TESTPROJ_IMGSPEC_
 
+enum bitWidth {FOUR_BIT, EIGHT_BIT, SIXTEEN_BIT};
+
 struct ImgSpec {
    int height = 0;
    int width = 0;
    bool smallColors = false;
-   bool useNibbles = false;
+   bitWidth pixelEncoding = EIGHT_BIT;
    int offset = 0;
 };
 
