@@ -1295,31 +1295,72 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
             WidenArray((unsigned char*)hexArray, splitFinalArray, width * height);
             char temp;
 
-            for (int a = 0; a < width*height; a++) {
-                if (((a / 8 + a / (width * 2)) % 2)) {
-                    if (a % 8 < 4) {
-                        temp = 4;
+            if (width == 64 && height == 64) {
+                for (int i = 0; i < height; i++) {
+                    if (i / 8 % 2 == 1) {
+                        for (int j = 0; j < width / 4; j++) {
+                            temp = *(splitFinalArray + i * width + j * 2 + 1);
+                            *(splitFinalArray + i * width + j * 2 + 1) = *(splitFinalArray + i * width + width / 2 + j * 2);
+                            *(splitFinalArray + i * width + width / 2 + j * 2) = *(splitFinalArray + i * width + width / 2 + j * 2 + 1);
+                            *(splitFinalArray + i * width + width / 2 + j * 2 + 1) = temp;
+                        }
                     }
                     else {
-                        temp = -4;
+                        for (int j = 0; j < width / 4; j++) {
+                            temp = *(splitFinalArray + i * width + width / 2 + j * 2);
+                            *(splitFinalArray + i * width + width / 2 + j * 2) = *(splitFinalArray + i * width + j * 2 + 1);
+                            *(splitFinalArray + i * width + j * 2 + 1) = *(splitFinalArray + i * width + j * 2);
+                            *(splitFinalArray + i * width + j * 2) = temp;
+                        }
                     }
                 }
-                else {
-                    temp = 0;
+                for (int w = 0; w < width / CHUNK_SIZE; w++) {
+                    for (int h = 0; h < height / CHUNK_SIZE; h++) {
+                        for (int c = 0; c < CHUNK_SIZE; c++) {
+                            for (int d = 0; d < CHUNK_SIZE; d++) {
+                                *(chunkArray + c * CHUNK_SIZE + d) = *(splitFinalArray + h * width * CHUNK_SIZE + c * width + w * CHUNK_SIZE + d);
+                            }
+                        }
+                        convert4Bit(chunkArray);
+                        for (int c = 0; c < CHUNK_SIZE; c++) {
+                            for (int d = 0; d < CHUNK_SIZE; d++) {
+                                *(splitFinalArray + h * width * CHUNK_SIZE + c * width + w * CHUNK_SIZE + d) = *(chunkArray + c * CHUNK_SIZE + d);
+                            }
+                        }
+                    }
                 }
-                newArray[a] = splitFinalArray[a % (width/8) * 8 + a / (width/8) % 8 + (a / width * width) + temp];
+                for (int i = 0; i < 64; i++) {
+                    for (int j = 0; j < 32; j++) {
+                        if (i % 2 == 1) {
+                            *(newArray + (i - 1) * 2 * 32 + j + 32) = *(splitFinalArray + i % 16 / 4 * 16 * 32 + i / 16 * 4 * 32 + (1 - i / 2 % 2) * 32 + 32 * 64 + j);
+                            *(newArray + (i - 1) * 2 * 32 + j + 32 + 64) = *(splitFinalArray + i % 16 / 4 * 16 * 32 + i / 16 * 4 * 32 + (1 - i / 2 % 2) * 32 + 32 * 64 + j + 64);
+                        }
+                        else {
+                            *(newArray + i * 2 * 32 + j) = *(splitFinalArray + i % 16 / 4 * 16 * 32 + i / 16 * 4 * 32 + (1 - i / 2 % 2) * 32 + j);
+                            *(newArray + i * 2 * 32 + j + 64) = *(splitFinalArray + i % 16 / 4 * 16 * 32 + i / 16 * 4 * 32 + (1 - i / 2 % 2) * 32 + j + 64);
+                        }
+                    }
+                }
+                free(splitFinalArray);
+                splitFinalArray = newArray;
             }
-            free(splitFinalArray);
-            splitFinalArray = newArray;
-            newArray = (unsigned char*)malloc(width * height);
-            int col;
-            for (int b = 0; b < width * height; b++) {
-                col = b / width;
-                col = col % (height / 4) * 4 + col / (height / 4) % 4;
-                newArray[b] = splitFinalArray[col * width + b % width];
+
+
+            else if (width == 32) {
+                for (int h = 0; h < height / 32; h++) {
+                    convert32x32(splitFinalArray + 32 * 32 * h);
+                }
             }
-            free(splitFinalArray);
-            splitFinalArray = newArray;
+
+            else if (width <= 16) {
+                for (int i = 0; i < height; i++) {
+                    for (int j = 0; j < width; j += 2) {
+                        unsigned char temp = splitFinalArray[i * width + j];
+                        splitFinalArray[i * width + j] = splitFinalArray[i * width + j + 1];
+                        splitFinalArray[i * width + j + 1] = temp;
+                    }
+                }
+            }
 
             writeImgRaw(width, height, bmpHeader, outFilePath + outFileName, paletteRGB, splitFinalArray);
             free(chunkArray);
