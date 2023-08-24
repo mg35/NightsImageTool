@@ -15,6 +15,7 @@ bool IsPathExist(const std::string& s)
     return (stat(s.c_str(), &buffer) == 0);
 }
 
+typedef unsigned char byte;
 
 void Unscramble(int numRows, unsigned char* array, unsigned char* resolveArray);
 std::string IntToString3Width(int value);
@@ -45,6 +46,7 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
 void GenHeaderInfo(std::string inFilePath, std::string inFileName, std::vector<ImgSpec>& headerInfo);
 void convert4Bit(unsigned char* array);
 void convert32x32(unsigned char* array1);
+byte* UnSwizzle4(byte buffer[], int width, int height);
 
 
 
@@ -56,6 +58,8 @@ int main() {
     std::string fileID;    //game file name
     std::string homeDir;   //output directory
     std::string gameDir;   //input/game directory
+
+    InitializeDirectories(homeDir, gameDir);
 
     while (mode != 'q') {
         std::cout << "Enter a mode:" << std::endl;
@@ -72,16 +76,7 @@ int main() {
             SetDirectories(homeDir, gameDir);
         }
 
-        else if (mode == 'i' || mode == 'o' || mode == 'g') {    //if not configuring, load directory information
-            InitializeDirectories(homeDir, gameDir);
-        }
-
-        else {    //reprint menu if user input is invalid
-            continue;
-        }
-
-
-        if (mode == 'i') {    //input mode
+        else if (mode == 'i') {    //input mode
 
             std::cout << "WARNING: THIS TOOL MAY PERMANENTLY ALTER AND POTENTIALLY CORRUPT GAME FILES. It is highly recommended to create a backup of \n";
             std::cout << gameDir << " \nbefore continuing. Continue? (y/n): ";    //warning
@@ -91,14 +86,14 @@ int main() {
                 std::cout << "Quitting" << std::endl;
                 return 0;
             }
-            std::cout << "Enter a game filename (case-sensitive): ";
+            std::cout << "Enter a game filename: ";
             std::getline(std::cin, fileID);    //get game filename
             std::fstream testStream;
             testStream.open(gameDir + fileID);    //test if file can be opened
             while (!testStream.is_open()) {
                 std::cout << "The file could not be opened. Enter another filename, or q to quit: ";
                 std::getline(std::cin, fileID);
-                if (fileID == "q") {
+                if (fileID[0] == 'q') {
                     std::cout << "Quitting" << std::endl;
                     return 0;
                 }
@@ -113,15 +108,15 @@ int main() {
         }
 
 
-        if (mode == 'o') {
-            std::cout << "Enter a game filename (case-sensitive): ";
+        else if (mode == 'o') {
+            std::cout << "Enter a game filename: ";
             std::getline(std::cin, fileID);
             std::fstream testStream;
             testStream.open(gameDir + fileID);    //test if file can be opened
             while (!testStream.is_open()) {
                 std::cout << "The file could not be opened. Enter another filename, or q to quit: ";
                 std::getline(std::cin, fileID);
-                if (fileID == "q") {
+                if (fileID[0] == 'q') {
                     std::cout << "Quitting" << std::endl;
                     return 0;
                 }
@@ -135,7 +130,7 @@ int main() {
             std::cout << std::endl;
         }
 
-        if (mode == 'g') {   //output all gallery images in sequence
+        else if (mode == 'g') {   //output all gallery images in sequence
             std::ifstream testIStream;
             testIStream.open(gameDir + "GAMEUI_GALLERY_001.BIN");  //since file names are predetermined, check if one exists in the gameDir
             if (!testIStream.is_open()) {
@@ -157,6 +152,10 @@ int main() {
                 OutputImages(gameDir, homeDir, fileID, headerInfo);
                 std::cout << std::endl;
             }
+        }
+
+        else {    //reprint menu if user input is invalid
+            continue;
         }
     }
 
@@ -963,7 +962,7 @@ int SetDirectories(std::string& homeDir, std::string& gameDir) {
     while (!IsPathExist(homeDir)) {
         std::cout << "Error: The directory does not exist. Enter another, or q to quit: ";
         getline(std::cin, homeDir);
-        if (homeDir == "q") {
+        if (homeDir[0] == 'q') {
             std::cout << "Quitting" << std::endl;
             homeWrite.close();
             return QUIT;
@@ -984,7 +983,7 @@ int SetDirectories(std::string& homeDir, std::string& gameDir) {
     while (!IsPathExist(gameDir)) {
         std::cout << "Error: The directory does not exist. Enter another, or q to quit: ";
         getline(std::cin, gameDir);
-        if (homeDir == "q") {
+        if (homeDir[0] == 'q') {
             std::cout << "Quitting" << std::endl;
             gameWrite.close();
             return QUIT;
@@ -1025,7 +1024,7 @@ int InitializeDirectories(std::string& homeDir, std::string& gameDir) {
     if (homeDir.empty()) {
         std::cout << "Error: The home directory has not been set. Set one now? (y/n): ";
         getline(std::cin, homeDir);
-        if (homeDir == "y") {
+        if (homeDir[0] == 'y') {
             std::cout << "Enter a home directory (starts with C:\\): ";
             getline(std::cin, homeDir);
         }
@@ -1037,7 +1036,7 @@ int InitializeDirectories(std::string& homeDir, std::string& gameDir) {
     while (!IsPathExist(homeDir)) {
         std::cout << "Error: The directory does not exist. Enter another, or q to quit: ";
         getline(std::cin, homeDir);
-        if (homeDir == "q") {
+        if (homeDir[0] == 'q') {
             std::cout << "Quitting" << std::endl;
             return QUIT;
         }
@@ -1052,16 +1051,15 @@ int InitializeDirectories(std::string& homeDir, std::string& gameDir) {
     if (gameDir.empty()) {
         std::cout << "Error: The game directory has not been set. Use default? (y/n): ";
         getline(std::cin, gameDir);
-        if (gameDir == "y") {
+        if (gameDir[0] == 'y') {
             std::cout << "Attempting to set game directory to\n" << R"(C:\Program Files (x86)\Steam\steamapps\common\NiGHTS Into Dreams\afs\)" << std::endl;
             outStream.open("gameDir.txt");
-            outStream << R"(C:\Program Files (x86)\Steam\steamapps\common\NiGHTS Into Dreams\afs\)";
             gameDir = R"(C:\Program Files (x86)\Steam\steamapps\common\NiGHTS Into Dreams\afs\)";
         }
         else {
             std::cout << "Set custom game directory? (y/n): ";
             getline(std::cin, gameDir);
-            if (gameDir == "y") {
+            if (gameDir[0] == 'y') {
                 std::cout << "Enter a game directory (starts with C:\\): ";
                 getline(std::cin, gameDir);
             }
@@ -1081,7 +1079,7 @@ int InitializeDirectories(std::string& homeDir, std::string& gameDir) {
     while (!IsPathExist(gameDir)) {
         std::cout << "Error: The directory does not exist. Enter another, or q to quit: ";
         getline(std::cin, gameDir);
-        if (gameDir == "q") {
+        if (gameDir[0] == 'q') {
             std::cout << "Quitting" << std::endl;
             outStream.close();
             return QUIT;
@@ -1095,7 +1093,7 @@ int InitializeDirectories(std::string& homeDir, std::string& gameDir) {
         std::ifstream testIStream;
         testIStream.open(gameDir + "DATNIGHTS.BIN", std::ios::binary);
         if (!testIStream.is_open()) {
-            std::cout << "Warning: The game directory may be incorrect (could not locate DATNIGHTS.BIN). You may change the game directory at any time by entering \"c\" at the menu." << std::endl;
+            std::cout << "Warning: The game directory may be incorrect (could not locate DATNIGHTS.BIN). You may change the game directory by entering \"c\" at the menu." << std::endl;
         }
         testIStream.close();
     }
@@ -1121,7 +1119,7 @@ int InputTexture(std::string& inFilePath, std::string& outFilePath, std::string&
             std::cout << "Writing 4-bit images is currently unsupported. Enter another image index or q to quit: ";
         }
         getline(std::cin, tempString);
-        if (tempString == "q") {
+        if (tempString[0] == 'q') {
             std::cout << "Quitting" << std::endl;
             return QUIT;
         }
@@ -1142,7 +1140,7 @@ int InputTexture(std::string& inFilePath, std::string& outFilePath, std::string&
     unsigned char* finalArray = (unsigned char*)malloc(numRows * numChunks * CHUNK_SIZE);
     int imgSize = 0;
 
-    std::cout << "Enter an image filename in the current directory \n(" << outFilePath << ") (case-sensitive): ";
+    std::cout << "Enter an image filename in the current directory \n(" << outFilePath << "): ";
     do {
 
         std::getline(std::cin, tempString);
@@ -1150,7 +1148,7 @@ int InputTexture(std::string& inFilePath, std::string& outFilePath, std::string&
         while (!testStream.is_open()) {
             std::cout << "The file could not be opened. Enter another filename, or q to quit: ";
             std::getline(std::cin, tempString);
-            if (tempString == "q") {
+            if (tempString[0] == 'q') {
                 std::cout << "Quitting" << std::endl;
                 testStream.close();
                 return QUIT;
@@ -1165,7 +1163,7 @@ int InputTexture(std::string& inFilePath, std::string& outFilePath, std::string&
             std::cout << "Error: file size is not equal. Enter another filename or q to quit: ";
             getline(std::cin, tempString);
 
-            if (tempString == "q") {
+            if (tempString[0] == 'q') {
                 std::cout << "Quitting" << std::endl;
                 testStream.close();
                 return QUIT;
@@ -1296,72 +1294,32 @@ void OutputImages(std::string& inFilePath, std::string& outFilePath, std::string
             unsigned char* newArray = (unsigned char*)malloc(width * height);
             WidenArray((unsigned char*)hexArray, splitFinalArray, width * height);
             char temp;
-            if (width == 64 && height == 64) {
-                for (int i = 0; i < height; i++) {
-                    if (i / 8 % 2 == 1) {
-                        for (int j = 0; j < width / 4; j++) {
-                            temp = *(splitFinalArray + i * width + j * 2 + 1);
-                            *(splitFinalArray + i * width + j * 2 + 1) = *(splitFinalArray + i * width + width / 2 + j * 2);
-                            *(splitFinalArray + i * width + width / 2 + j * 2) = *(splitFinalArray + i * width + width / 2 + j * 2 + 1);
-                            *(splitFinalArray + i * width + width / 2 + j * 2 + 1) = temp;
-                        }
+
+            for (int a = 0; a < width*height; a++) {
+                if (((a / 8 + a / (width * 2)) % 2)) {
+                    if (a % 8 < 4) {
+                        temp = 4;
                     }
                     else {
-                        for (int j = 0; j < width / 4; j++) {
-                            temp = *(splitFinalArray + i * width + width / 2 + j * 2);
-                            *(splitFinalArray + i * width + width / 2 + j * 2) = *(splitFinalArray + i * width + j * 2 + 1);
-                            *(splitFinalArray + i * width + j * 2 + 1) = *(splitFinalArray + i * width + j * 2);
-                            *(splitFinalArray + i * width + j * 2) = temp;
-                        }
+                        temp = -4;
                     }
                 }
-                for (int w = 0; w < width / CHUNK_SIZE; w++) {
-                    for (int h = 0; h < height / CHUNK_SIZE; h++) {
-                        for (int c = 0; c < CHUNK_SIZE; c++) {
-                            for (int d = 0; d < CHUNK_SIZE; d++) {
-                                *(chunkArray + c * CHUNK_SIZE + d) = *(splitFinalArray + h * width * CHUNK_SIZE + c * width + w * CHUNK_SIZE + d);
-                            }
-                        }
-                        convert4Bit(chunkArray);
-                        for (int c = 0; c < CHUNK_SIZE; c++) {
-                            for (int d = 0; d < CHUNK_SIZE; d++) {
-                                *(splitFinalArray + h * width * CHUNK_SIZE + c * width + w * CHUNK_SIZE + d) = *(chunkArray + c * CHUNK_SIZE + d);
-                            }
-                        }
-                    }
+                else {
+                    temp = 0;
                 }
-                for (int i = 0; i < 64; i++) {
-                    for (int j = 0; j < 32; j++) {
-                        if (i % 2 == 1) {
-                            *(newArray + (i - 1) * 2 * 32 + j + 32) = *(splitFinalArray + i % 16 / 4 * 16 * 32 + i / 16 * 4 * 32 + (1 - i / 2 % 2) * 32 + 32 * 64 + j);
-                            *(newArray + (i - 1) * 2 * 32 + j + 32 + 64) = *(splitFinalArray + i % 16 / 4 * 16 * 32 + i / 16 * 4 * 32 + (1 - i / 2 % 2) * 32 + 32 * 64 + j + 64);
-                        }
-                        else {
-                            *(newArray + i * 2 * 32 + j) = *(splitFinalArray + i % 16 / 4 * 16 * 32 + i / 16 * 4 * 32 + (1 - i / 2 % 2) * 32 + j);
-                            *(newArray + i * 2 * 32 + j + 64) = *(splitFinalArray + i % 16 / 4 * 16 * 32 + i / 16 * 4 * 32 + (1 - i / 2 % 2) * 32 + j + 64);
-                        }
-                    }
-                }
-                free(splitFinalArray);
-                splitFinalArray = newArray;
+                newArray[a] = splitFinalArray[a % (width/8) * 8 + a / (width/8) % 8 + (a / width * width) + temp];
             }
-
-
-            else if (width == 32) {
-                for (int h = 0; h < height / 32; h++) {
-                    convert32x32(splitFinalArray + 32 * 32 * h);
-                }
+            free(splitFinalArray);
+            splitFinalArray = newArray;
+            newArray = (unsigned char*)malloc(width * height);
+            int col;
+            for (int b = 0; b < width * height; b++) {
+                col = b / width;
+                col = col % (height / 4) * 4 + col / (height / 4) % 4;
+                newArray[b] = splitFinalArray[col * width + b % width];
             }
-
-            else if (width <= 16) {
-                for (int i = 0; i < height; i++) {
-                    for (int j = 0; j < width; j += 2) {
-                        unsigned char temp = splitFinalArray[i * width + j];
-                        splitFinalArray[i * width + j] = splitFinalArray[i * width + j + 1];
-                        splitFinalArray[i * width + j + 1] = temp;
-                    }
-                }
-            }
+            free(splitFinalArray);
+            splitFinalArray = newArray;
 
             writeImgRaw(width, height, bmpHeader, outFilePath + outFileName, paletteRGB, splitFinalArray);
             free(chunkArray);
@@ -1553,7 +1511,6 @@ void OutputModels(std::string& inFilePath, std::string& outFilePath, std::string
     mtlWriter.close();
     writer.close();
     std::cout << objectNum << " models extracted from " << inFileName << "." << std::endl;
-    std::cout << totalVertGroups << "lol" << std::endl;
 }
 
 void GenHeaderInfo(std::string inFilePath, std::string inFileName, std::vector<ImgSpec>& headerInfo) {
